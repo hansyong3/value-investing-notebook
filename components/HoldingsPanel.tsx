@@ -128,6 +128,12 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
             <>
               <span className="text-sm text-gray-500">持仓 <span className="font-mono font-semibold text-gray-800">{totalShares.toLocaleString()}</span> 股</span>
               <span className="text-sm text-gray-500">持有平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
+              {currentPrice != null && (
+                <>
+                  <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
+                  <span className="text-sm text-gray-400">现总值 <span className="font-mono font-semibold text-gray-700">{(currentPrice * totalShares).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>
+                </>
+              )}
               {pnl != null && (
                 <span className={`text-base font-bold ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
                   盈亏 <span className="font-mono">{pnl >= 0 ? "+" : ""}{pnl.toFixed(0)}</span>
@@ -135,12 +141,6 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
                     <span className="ml-1 text-sm">({pnlRate >= 0 ? "+" : ""}{pnlRate.toFixed(2)}%)</span>
                   )}
                 </span>
-              )}
-              {currentPrice != null && (
-                <>
-                  <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
-                  <span className="text-sm text-gray-400">现总值 <span className="font-mono font-semibold text-gray-700">{(currentPrice * totalShares).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>
-                </>
               )}
             </>
           )}
