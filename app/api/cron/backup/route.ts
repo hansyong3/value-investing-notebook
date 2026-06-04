@@ -2,13 +2,22 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { stocks, notes, noteImages, holdings } from "@/db/schema";
 
-const GITHUB_TOKEN = process.env.GITHUB_BACKUP_TOKEN!;
-const GITHUB_REPO = process.env.GITHUB_BACKUP_REPO!; // e.g. "hansyong3/investing-data-backup"
 const FILE_PATH = "backup.json";
 
 export async function GET(req: Request) {
+  const GITHUB_TOKEN = process.env.GITHUB_BACKUP_TOKEN;
+  const GITHUB_REPO = process.env.GITHUB_BACKUP_REPO;
+
   if (!GITHUB_TOKEN || !GITHUB_REPO) {
-    return NextResponse.json({ error: "Missing GitHub env vars" }, { status: 500 });
+    return NextResponse.json({
+      error: "Missing GitHub env vars",
+      debug: {
+        hasToken: !!GITHUB_TOKEN,
+        tokenLength: GITHUB_TOKEN?.length ?? 0,
+        hasRepo: !!GITHUB_REPO,
+        repo: GITHUB_REPO ?? "NOT SET",
+      }
+    }, { status: 500 });
   }
 
   // Fetch all data
