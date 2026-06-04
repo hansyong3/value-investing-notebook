@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import NotePanel from "@/components/NotePanel";
 import HoldingsPanel from "@/components/HoldingsPanel";
@@ -268,6 +269,10 @@ export default function StockPage() {
               <span>+</span> 添加标的
             </button>
           )}
+          <Link href="/backup"
+            className="w-full text-xs text-gray-300 hover:text-gray-500 py-1.5 flex items-center justify-center gap-1 transition-colors border-t border-gray-100 mt-1 pt-2">
+            🔒 备份 / 恢复数据
+          </Link>
           <button
             onClick={async () => {
               const name = prompt("笔记本名称：");
