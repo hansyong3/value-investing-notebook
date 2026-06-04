@@ -16,13 +16,15 @@ type Props = {
 };
 
 function parseContent(content: string) {
-  // Content stored as "title\n<html body>"
   const idx = content.indexOf("\n");
   if (idx === -1) return { title: content, body: "" };
   return { title: content.slice(0, idx), body: content.slice(idx + 1) };
 }
 
-const COLLAPSED_ROWS = 3;
+// Strip HTML tags for plain text preview
+function stripHtml(html: string) {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
 
 export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf }: Props) {
   const [titles, setTitles] = useState<Record<number, string>>({});
@@ -36,18 +38,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const editingIds = useRef<Set<number>>(new Set());
 
   useEffect(() => {
-    setTitles((prev) => {
+    setTitles(prev => {
       const next = { ...prev };
-      for (const n of notes) {
-        if (!editingIds.current.has(n.id)) next[n.id] = parseContent(n.content).title;
-      }
+      for (const n of notes) if (!editingIds.current.has(n.id)) next[n.id] = parseContent(n.content).title;
       return next;
     });
-    setBodies((prev) => {
+    setBodies(prev => {
       const next = { ...prev };
-      for (const n of notes) {
-        if (!editingIds.current.has(n.id)) next[n.id] = parseContent(n.content).body;
-      }
+      for (const n of notes) if (!editingIds.current.has(n.id)) next[n.id] = parseContent(n.content).body;
       return next;
     });
   }, [notes]);
@@ -86,7 +84,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   }
 
   async function imageToDataUrl(file: File): Promise<string> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
@@ -125,6 +123,16 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     }, 150);
   }
 
+  function expandAll() {
+    const all: Record<number, boolean> = {};
+    notes.forEach(n => { all[n.id] = true; });
+    setExpanded(all);
+  }
+
+  function collapseAll() {
+    setExpanded({});
+  }
+
   function isHighlighted(note: Note) {
     if (!activeDate) return false;
     return note.date.slice(0, 7) === activeDate.slice(0, 7);
@@ -138,8 +146,13 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-gray-50">
-      <div className="px-4 py-2.5 border-b border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
-        <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length})</span></span>
+      {/* Header */}
+      <div className="px-4 py-2 border-b border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length})</span></span>
+          <button onClick={collapseAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部收起</button>
+          <button onClick={expandAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部展开</button>
+        </div>
         <div className="flex items-center gap-2">
           <button onClick={onExportPdf} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors">导出 PDF</button>
           <button onClick={addNewNote} disabled={adding}
@@ -149,6 +162,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
         </div>
       </div>
 
+      {/* Notes */}
       <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
         {sorted.length === 0 && (
           <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
@@ -157,6 +171,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
         {sorted.map((note) => {
           const isOpen = !!expanded[note.id];
           const hl = isHighlighted(note);
+          const bodyText = stripHtml(bodies[note.id] ?? note.content);
+
           return (
             <div key={note.id}
               ref={(el) => { noteRefs.current[String(note.id)] = el; }}
@@ -164,13 +180,11 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 hl ? "border-blue-400 shadow-md shadow-blue-100 ring-1 ring-blue-300" : "border-gray-200 shadow-sm"
               }`}
             >
-              {/* Header */}
+              {/* Header row */}
               <div className={`flex items-center justify-between px-3 py-1.5 border-b ${hl ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => toggleStar(note.id, note.starred)}
-                    className={`text-base leading-none transition-colors ${note.starred ? "text-yellow-400" : "text-gray-300 hover:text-yellow-400"}`}>
-                    ★
-                  </button>
+                    className={`text-base leading-none transition-colors ${note.starred ? "text-yellow-400" : "text-gray-300 hover:text-yellow-400"}`}>★</button>
                   <input type="date" defaultValue={note.date}
                     onChange={async (e) => {
                       if (!e.target.value) return;
@@ -183,9 +197,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 <div className="flex items-center gap-2">
                   {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
                   <button onClick={() => deleteNote(note.id)}
-                    className="text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 px-1.5 py-0.5 rounded transition-colors">
-                    删除
-                  </button>
+                    className="text-xs text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 px-1.5 py-0.5 rounded transition-colors">删除</button>
                 </div>
               </div>
 
@@ -197,13 +209,21 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 className="w-full px-3 pt-2.5 pb-1 text-base font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white border-b border-gray-100"
               />
 
-              {/* Rich text body */}
-              <NoteEditor
-                content={bodies[note.id] ?? ""}
-                onChange={(html) => handleBody(note.id, html)}
-                onImagePaste={imageToDataUrl}
-                expanded={isOpen}
-              />
+              {/* Body: collapsed = 4-line text preview, expanded = rich editor */}
+              {isOpen ? (
+                <NoteEditor
+                  content={bodies[note.id] ?? ""}
+                  onChange={(html) => handleBody(note.id, html)}
+                  onImageFile={imageToDataUrl}
+                />
+              ) : (
+                <div
+                  className="px-3 py-2 text-sm text-gray-500 leading-relaxed line-clamp-4 cursor-pointer"
+                  onClick={() => setExpanded(e => ({ ...e, [note.id]: true }))}
+                >
+                  {bodyText || <span className="text-gray-300 italic">点击展开编辑...</span>}
+                </div>
+              )}
 
               {/* Footer */}
               <div className="flex justify-end px-3 py-1.5 border-t border-gray-50">
