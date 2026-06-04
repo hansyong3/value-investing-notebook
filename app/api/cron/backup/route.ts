@@ -7,12 +7,6 @@ const GITHUB_REPO = process.env.GITHUB_BACKUP_REPO!; // e.g. "hansyong3/investin
 const FILE_PATH = "backup.json";
 
 export async function GET(req: Request) {
-  // Verify cron secret to prevent unauthorized calls
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   if (!GITHUB_TOKEN || !GITHUB_REPO) {
     return NextResponse.json({ error: "Missing GitHub env vars" }, { status: 500 });
   }

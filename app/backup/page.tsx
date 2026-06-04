@@ -14,9 +14,7 @@ export default function BackupPage() {
     setResult(null);
     setError(null);
     try {
-      const res = await fetch("/api/cron/backup", {
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ""}` },
-      });
+      const res = await fetch("/api/cron/backup");
       const data = await res.json();
       if (data.ok) {
         setResult(`已备份到 GitHub：${data.counts.stocks} 个标的、${data.counts.notes} 条笔记、${data.counts.holdings} 条持仓记录`);
