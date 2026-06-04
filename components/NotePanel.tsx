@@ -15,21 +15,25 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
   const [contents, setContents] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const editingDates = useRef<Set<string>>(new Set()); // track dates currently being edited
 
-  // Sync contents from props
+  // Sync contents from server — but don't overwrite what user is actively editing
   useEffect(() => {
     setContents((prev) => {
       const next = { ...prev };
       for (const n of notes) {
-        if (!(n.date in next)) next[n.date] = n.content;
+        if (!editingDates.current.has(n.date)) {
+          next[n.date] = n.content;
+        }
       }
       return next;
     });
   }, [notes]);
 
-  // Scroll to active date
+  // Scroll to active date when crosshair moves
   useEffect(() => {
     if (!activeDate) return;
     const ym = activeDate.slice(0, 7);
@@ -47,12 +51,13 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
       body: JSON.stringify({ symbol, date, content }),
     });
     setSaving((s) => ({ ...s, [date]: false }));
+    editingDates.current.delete(date);
     onNotesSaved();
   }, [symbol, onNotesSaved]);
 
   function handleChange(date: string, value: string) {
+    editingDates.current.add(date);
     setContents((c) => ({ ...c, [date]: value }));
-    // Debounce auto-save 1.5s
     clearTimeout(saveTimers.current[date]);
     saveTimers.current[date] = setTimeout(() => saveNote(date, value), 1500);
   }
@@ -74,7 +79,9 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
       body: JSON.stringify({ symbol, date: today, content: "" }),
     });
     setAdding(false);
-    onNotesSaved();
+    await onNotesSaved();
+    // Scroll to top to show the new note (newest first)
+    setTimeout(() => listRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 100);
   }
 
   function isHighlighted(note: Note) {
@@ -82,12 +89,12 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
     return note.date.slice(0, 7) === activeDate.slice(0, 7);
   }
 
-  const sorted = [...notes].reverse();
+  const sorted = [...notes].sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Header */}
-      <div className="px-4 py-2.5 border-b border-gray-200 bg-white flex items-center justify-between">
+      <div className="px-4 py-2.5 border-b border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
         <span className="text-sm text-gray-500">研究笔记</span>
         <button
           onClick={addNewNote}
@@ -99,9 +106,9 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
       </div>
 
       {/* Notes list */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-3">
         {sorted.length === 0 && (
-          <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，选择日期添加第一条</p>
+          <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
         )}
 
         {sorted.map((note) => (
@@ -121,14 +128,12 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
               <span className={`text-xs font-semibold ${isHighlighted(note) ? "text-blue-600" : "text-gray-500"}`}>
                 {note.date}
               </span>
-              {saving[note.date] && (
-                <span className="text-xs text-gray-400">保存中...</span>
-              )}
+              {saving[note.date] && <span className="text-xs text-gray-400">保存中...</span>}
             </div>
 
             {/* Editable content */}
             <textarea
-              value={contents[note.date] ?? note.content}
+              value={contents[note.date] ?? ""}
               onChange={(e) => handleChange(note.date, e.target.value)}
               rows={4}
               placeholder="写下你的分析和思考..."
