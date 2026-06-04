@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, date, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, date, integer, numeric, boolean } from "drizzle-orm/pg-core";
 
 export const stocks = pgTable("stocks", {
   id: serial("id").primaryKey(),
@@ -12,6 +12,7 @@ export const notes = pgTable("notes", {
   stockId: integer("stock_id").notNull().references(() => stocks.id, { onDelete: "cascade" }),
   date: date("date").notNull(),
   content: text("content").notNull().default(""),
+  starred: boolean("starred").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

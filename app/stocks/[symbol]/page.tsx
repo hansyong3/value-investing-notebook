@@ -8,7 +8,7 @@ import HoldingsPanel from "@/components/HoldingsPanel";
 const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false });
 
 type Bar = { time: string; open: number; high: number; low: number; close: number };
-type Note = { id: number; date: string; content: string; images: { id: number; url: string }[] };
+type Note = { id: number; date: string; content: string; starred: boolean; images: { id: number; url: string }[] };
 type Stock = { id: number; symbol: string; name: string };
 type Holding = { id: number; type: string; date: string; shares: string; price: string; currency: string; fee: string; note: string };
 

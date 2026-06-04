@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 type NoteImage = { id: number; url: string };
-type Note = { id: number; date: string; content: string; images: NoteImage[]; createdAt?: string };
+type Note = { id: number; date: string; content: string; starred: boolean; images: NoteImage[]; createdAt?: string };
 
 type Props = {
   symbol: string;
@@ -89,6 +89,15 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
     schedSave(id, titles[id] ?? "", val);
   }
 
+  async function toggleStar(id: number, current: boolean) {
+    await fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, id, starred: !current }),
+    });
+    onNotesSaved();
+  }
+
   async function deleteNote(id: number) {
     if (!confirm("确定删除这条笔记？")) return;
     await fetch(`/api/notes?id=${id}`, { method: "DELETE" });
@@ -125,7 +134,12 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
     return note.date.slice(0, 7) === activeDate.slice(0, 7);
   }
 
-  const sorted = [...notes].sort((a, b) => b.id - a.id);
+  // Starred first, then by date desc, then by id desc
+  const sorted = [...notes].sort((a, b) => {
+    if (a.starred !== b.starred) return a.starred ? -1 : 1;
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return b.id - a.id;
+  });
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -158,7 +172,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
               <div className={`flex items-center justify-between px-3 py-1.5 border-b ${
                 hl ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"
               }`}>
-                <span className={`text-xs ${hl ? "text-blue-500" : "text-gray-400"}`}>{note.date}</span>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => toggleStar(note.id, note.starred)}
+                    className={`text-base leading-none transition-colors ${note.starred ? "text-yellow-400 hover:text-yellow-300" : "text-gray-200 hover:text-yellow-400"}`}
+                    title={note.starred ? "取消星标" : "星标置顶"}>
+                    ★
+                  </button>
+                  <span className={`text-xs ${hl ? "text-blue-500" : "text-gray-400"}`}>{note.date}</span>
+                </div>
                 <div className="flex items-center gap-2">
                   {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
                   <button onClick={() => deleteNote(note.id)}
