@@ -50,8 +50,13 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
       const date = param.time ? (param.time as string) : null;
       onCrosshairMove(date);
       if (!date || !param.point) { setTooltip(null); return; }
-      // Only show tooltip on bars that have a blue dot marker
-      const matched = markerDatesRef.current.get(date) ?? [];
+      // Show tooltip only within ±3 calendar days of a note
+      const crossTs = new Date(date + "T00:00:00Z").getTime();
+      const THREE_DAYS = 3 * 86400000;
+      const matched = notesRef.current.filter(n => {
+        const noteTs = new Date(n.date + "T00:00:00Z").getTime();
+        return Math.abs(noteTs - crossTs) <= THREE_DAYS;
+      });
       setTooltip(matched.length > 0 ? { x: param.point.x, y: param.point.y, notes: matched } : null);
     });
 
