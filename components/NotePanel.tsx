@@ -14,7 +14,7 @@ type Props = {
 export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: Props) {
   const [contents, setContents] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
-  const [newNoteDate, setNewNoteDate] = useState("");
+  const [adding, setAdding] = useState(false);
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -66,13 +66,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
   }
 
   async function addNewNote() {
-    if (!newNoteDate) return;
+    setAdding(true);
+    const today = new Date().toISOString().split("T")[0];
     await fetch("/api/notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol, date: newNoteDate, content: "" }),
+      body: JSON.stringify({ symbol, date: today, content: "" }),
     });
-    setNewNoteDate("");
+    setAdding(false);
     onNotesSaved();
   }
 
@@ -86,19 +87,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Header */}
-      <div className="px-4 py-2.5 border-b border-gray-200 bg-white flex items-center gap-2">
-        <input
-          type="date"
-          value={newNoteDate}
-          onChange={(e) => setNewNoteDate(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-blue-400"
-        />
+      <div className="px-4 py-2.5 border-b border-gray-200 bg-white flex items-center justify-between">
+        <span className="text-sm text-gray-500">研究笔记</span>
         <button
           onClick={addNewNote}
-          disabled={!newNoteDate}
+          disabled={adding}
           className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors"
         >
-          + 添加笔记
+          {adding ? "创建中..." : "+ 添加笔记"}
         </button>
       </div>
 
