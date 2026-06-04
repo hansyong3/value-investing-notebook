@@ -300,7 +300,7 @@ export default function StockPage() {
       ) : (
         <>
           {/* Center: chart + holdings */}
-          <div className="flex flex-col w-[48%] flex-shrink-0 border-r border-gray-200">
+          <div className="flex flex-col flex-1 min-w-0 border-r border-gray-200">
             {/* Toolbar */}
             <div className="flex items-center gap-2 px-4 h-11 border-b border-gray-200 flex-shrink-0 bg-white">
               <span className="font-mono font-bold text-blue-600">{decodedSymbol}</span>
@@ -345,7 +345,7 @@ export default function StockPage() {
           </div>
 
           {/* Right: notes */}
-          <div className="flex-[2] min-w-0 min-h-0 overflow-hidden flex flex-col bg-white">
+          <div className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col bg-white">
             <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
           </div>
         </>
