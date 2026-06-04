@@ -109,7 +109,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      const insertion = `\n![](${base64})\n`;
+      const insertion = `\n![](${base64})\n\n`;
       const newBody = (bodies[id] ?? "") + insertion;
       setBodies((b) => ({ ...b, [id]: newBody }));
       schedSave(id, titles[id] ?? "", newBody);
@@ -179,7 +179,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       </div>
 
       {/* Notes list */}
-      <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
         {sorted.length === 0 && (
           <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
         )}
@@ -253,7 +253,15 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
 
               {/* Inline images parsed from body */}
               {(() => {
-                const imgUrls = [...(bodies[note.id] ?? "").matchAll(/!\[.*?\]\((https?:\/\/[^)]+)\)/g)].map(m => m[1]);
+                // Parse ![](url) — base64 urls can contain ) so match greedily to last )
+                const body = bodies[note.id] ?? "";
+                const imgUrls: string[] = [];
+                const re = /!\[.*?\]\(([\s\S]*?)\n/g;
+                let match;
+                while ((match = re.exec(body + "\n")) !== null) {
+                  const url = match[1].trim().replace(/\)$/, "");
+                  if (url.startsWith("data:image/") || url.startsWith("http")) imgUrls.push(url);
+                }
                 return imgUrls.length > 0 ? (
                   <div className="px-3 pb-2 grid grid-cols-2 gap-2">
                     {imgUrls.map((url, i) => (
