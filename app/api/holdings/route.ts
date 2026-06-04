@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { holdings, stocks } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const [stock] = await db.select().from(stocks).where(eq(stocks.symbol, symbol.toUpperCase()));
   if (!stock) return NextResponse.json([]);
 
-  const rows = await db.select().from(holdings).where(eq(holdings.stockId, stock.id)).orderBy(asc(holdings.date), asc(holdings.id));
+  const rows = await db.select().from(holdings).where(eq(holdings.stockId, stock.id)).orderBy(desc(holdings.date), desc(holdings.id));
   return NextResponse.json(rows);
 }
 
