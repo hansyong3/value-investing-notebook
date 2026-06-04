@@ -185,7 +185,20 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                     title={note.starred ? "取消星标" : "星标置顶"}>
                     ★
                   </button>
-                  <span className={`text-xs ${hl ? "text-blue-500" : "text-gray-400"}`}>{note.date}</span>
+                  <input
+                    type="date"
+                    defaultValue={note.date}
+                    onChange={async (e) => {
+                      if (!e.target.value) return;
+                      await fetch("/api/notes", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ symbol, id: note.id, date: e.target.value }),
+                      });
+                      onNotesSaved();
+                    }}
+                    className={`text-xs border-none bg-transparent focus:outline-none cursor-pointer ${hl ? "text-blue-500" : "text-gray-400"}`}
+                  />
                 </div>
                 <div className="flex items-center gap-2">
                   {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}

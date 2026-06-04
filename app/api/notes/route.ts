@@ -36,6 +36,7 @@ export async function POST(req: Request) {
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (content !== undefined) updates.content = content;
     if (starred !== undefined) updates.starred = starred;
+    if (date !== undefined) updates.date = date;
     const [note] = await db.update(notes).set(updates).where(eq(notes.id, id)).returning();
     return NextResponse.json(note);
   }
