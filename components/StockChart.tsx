@@ -4,21 +4,14 @@ import { createChart, CandlestickSeries, createSeriesMarkers, type IChartApi, ty
 
 type Bar = { time: string; open: number; high: number; low: number; close: number };
 type Note = { id: number; date: string; content: string };
-
-type Props = {
-  data: Bar[];
-  notes: Note[];
-  onCrosshairMove: (date: string | null) => void;
-};
-
+type Props = { data: Bar[]; notes: Note[]; onCrosshairMove: (date: string | null) => void };
 type Tooltip = { x: number; y: number; notes: Note[] } | null;
 
-// Extract title (first line) and body snippet from note content
 function parseNote(content: string) {
-  const lines = content.split("\n");
-  const title = lines[0]?.trim() || "（无标题）";
-  const body = lines.slice(1).join(" ").trim();
-  const snippet = body ? body.slice(0, 20) + (body.length > 20 ? "…" : "") : "";
+  const idx = content.indexOf("\n");
+  const title = (idx === -1 ? content : content.slice(0, idx)).trim() || "（无标题）";
+  const body = idx === -1 ? "" : content.slice(idx + 1).trim();
+  const snippet = body ? body.slice(0, 30) + (body.length > 30 ? "…" : "") : "";
   return { title, snippet };
 }
 
@@ -26,17 +19,16 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const notesRef = useRef<Note[]>(notes);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const markersPluginRef = useRef<any>(null);
+  const markersRef = useRef<any>(null);
+  const notesRef = useRef<Note[]>(notes);
   const [tooltip, setTooltip] = useState<Tooltip>(null);
 
-  // Keep notesRef in sync so crosshair handler always has latest notes
-  useEffect(() => { notesRef.current = notes; }, [notes]);
+  notesRef.current = notes;
 
+  // Init chart once
   useEffect(() => {
     if (!containerRef.current) return;
-
     const chart = createChart(containerRef.current, {
       layout: { background: { color: "#ffffff" }, textColor: "#374151" },
       grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
@@ -45,101 +37,74 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
     });
-
     const series = chart.addSeries(CandlestickSeries, {
       upColor: "#16a34a", downColor: "#dc2626",
       borderUpColor: "#16a34a", borderDownColor: "#dc2626",
       wickUpColor: "#16a34a", wickDownColor: "#dc2626",
     });
-
     chartRef.current = chart;
     seriesRef.current = series;
 
     chart.subscribeCrosshairMove((param) => {
       const date = param.time ? (param.time as string) : null;
       onCrosshairMove(date);
-
       if (!date || !param.point) { setTooltip(null); return; }
-
       const ts = new Date(date).getTime();
-      // Match notes within ±15 days so weekly/monthly K also works
-      const matched = notesRef.current.filter((n) => {
-        const diff = Math.abs(new Date(n.date).getTime() - ts);
-        return diff <= 15 * 86400000;
-      });
-
-      if (matched.length > 0) {
-        setTooltip({ x: param.point.x, y: param.point.y, notes: matched });
-      } else {
-        setTooltip(null);
-      }
+      const matched = notesRef.current.filter(n => Math.abs(new Date(n.date).getTime() - ts) <= 3 * 86400000);
+      setTooltip(matched.length > 0 ? { x: param.point.x, y: param.point.y, notes: matched } : null);
     });
 
     const ro = new ResizeObserver(() => {
-      if (containerRef.current) {
+      if (containerRef.current)
         chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight });
-      }
     });
     ro.observe(containerRef.current);
+    return () => { ro.disconnect(); chart.remove(); markersRef.current = null; };
+  }, []);
 
-    return () => { ro.disconnect(); chart.remove(); };
-  }, []); // only init once
-
-  // Build markers: snap each note to the nearest bar date (within 7 days)
-  function buildMarkers(noteList: Note[], barList: Bar[]) {
-    if (barList.length === 0) return [];
-    const result: { time: string; position: "belowBar"; color: string; shape: "circle"; text: string; size: number }[] = [];
-    const seen = new Set<string>();
-
-    for (const n of noteList) {
-      const ts = new Date(n.date).getTime();
-      let nearest = "";
-      let minDiff = Infinity;
-      for (const b of barList) {
-        const diff = Math.abs(new Date(b.time).getTime() - ts);
-        if (diff < minDiff) { minDiff = diff; nearest = b.time; }
-      }
-      if (nearest && minDiff <= 7 * 86400000 && !seen.has(nearest)) {
-        seen.add(nearest);
-        result.push({ time: nearest, position: "belowBar", color: "#3b82f6", shape: "circle", text: "", size: 0.6 });
-      }
-    }
-    return result.sort((a, b) => a.time.localeCompare(b.time));
-  }
-
+  // Update data + markers whenever data or notes change
   useEffect(() => {
     if (!seriesRef.current || data.length === 0) return;
     seriesRef.current.setData(data);
     chartRef.current?.timeScale().fitContent();
+    updateMarkers(data, notes);
+  }, [data, notes]);
 
-    const markers = buildMarkers(notesRef.current, data);
-    if (markersPluginRef.current) {
-      markersPluginRef.current.setMarkers(markers);
-    } else {
-      markersPluginRef.current = createSeriesMarkers(seriesRef.current, markers);
+  function updateMarkers(barList: Bar[], noteList: Note[]) {
+    if (!seriesRef.current) return;
+    // Snap each note to nearest bar date
+    const markers: { time: string; position: "belowBar"; color: string; shape: "circle"; text: string; size: number }[] = [];
+    const seen = new Set<string>();
+    for (const n of noteList) {
+      const ts = new Date(n.date).getTime();
+      let nearest = ""; let minDiff = Infinity;
+      for (const b of barList) {
+        const d = Math.abs(new Date(b.time).getTime() - ts);
+        if (d < minDiff) { minDiff = d; nearest = b.time; }
+      }
+      if (nearest && !seen.has(nearest)) {
+        seen.add(nearest);
+        markers.push({ time: nearest, position: "belowBar", color: "#3b82f6", shape: "circle", text: "", size: 0.8 });
+      }
     }
-  }, [data]);
+    markers.sort((a, b) => a.time.localeCompare(b.time));
 
-  // Update markers when notes change without re-creating
-  useEffect(() => {
-    if (!markersPluginRef.current || data.length === 0) return;
-    const markers = buildMarkers(notes, data);
-    markersPluginRef.current.setMarkers(markers);
-  }, [notes]);
+    if (markersRef.current) {
+      markersRef.current.setMarkers(markers);
+    } else {
+      markersRef.current = createSeriesMarkers(seriesRef.current, markers);
+    }
+  }
 
   const containerW = containerRef.current?.clientWidth ?? 600;
-  const tooltipLeft = tooltip
-    ? (tooltip.x + 220 > containerW ? tooltip.x - 224 : tooltip.x + 10)
-    : 0;
-  const tooltipTop = tooltip ? Math.max(8, tooltip.y - 20) : 0;
+  const left = tooltip ? (tooltip.x + 230 > containerW ? tooltip.x - 234 : tooltip.x + 10) : 0;
+  const top = tooltip ? Math.max(8, tooltip.y - 10) : 0;
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
       {tooltip && (
-        <div
-          className="absolute z-20 bg-white border border-blue-200 rounded-xl shadow-xl pointer-events-none"
-          style={{ left: tooltipLeft, top: tooltipTop, minWidth: 180, maxWidth: 220 }}
-        >
+        <div className="absolute z-20 bg-white border border-blue-200 rounded-xl shadow-xl pointer-events-none"
+          style={{ left, top, minWidth: 160, maxWidth: 220 }}>
           {tooltip.notes.map((note) => {
             const { title, snippet } = parseNote(note.content);
             return (
