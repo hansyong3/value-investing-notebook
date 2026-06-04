@@ -65,22 +65,37 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
   const [editForm, setEditForm] = useState<EditForm>(EMPTY);
   const [editSaving, setEditSaving] = useState(false);
 
-  // Summary: FIFO average cost calculation
-  let totalShares = 0, totalCost = 0;
+  // Summary: FIFO average cost + realized/unrealized P&L
+  let totalShares = 0, totalCost = 0, totalBuyCost = 0, realizedPnl = 0;
   for (const h of [...holdings].sort((a, b) => a.date.localeCompare(b.date))) {
     const s = parseFloat(h.shares), p = parseFloat(h.price), f = parseFloat(h.fee || "0");
     if (h.type === "buy") {
       totalCost += s * p + f;
+      totalBuyCost += s * p + f;
       totalShares += s;
     } else {
       const avgPerShare = totalShares > 0 ? totalCost / totalShares : p;
-      totalCost -= s * avgPerShare;
+      const proceeds = s * p - f;
+      const cost = s * avgPerShare;
+      realizedPnl += proceeds - cost;
+      totalCost -= cost;
       totalShares -= s;
     }
   }
   const avgCost = totalShares > 0 ? totalCost / totalShares : 0;
-  const pnl = currentPrice != null && totalShares > 0 ? (currentPrice - avgCost) * totalShares : null;
-  const pnlRate = currentPrice != null && avgCost > 0 ? (currentPrice - avgCost) / avgCost * 100 : null;
+  const hasHistory = holdings.length > 0;
+  const isExited = hasHistory && totalShares <= 0;
+
+  // Unrealized P&L (still holding)
+  const unrealizedPnl = currentPrice != null && totalShares > 0 ? (currentPrice - avgCost) * totalShares : null;
+  const unrealizedRate = currentPrice != null && avgCost > 0 && totalShares > 0 ? (currentPrice - avgCost) / avgCost * 100 : null;
+
+  // For display
+  const pnl = isExited ? realizedPnl : unrealizedPnl;
+  const pnlRate = isExited
+    ? (totalBuyCost > 0 ? realizedPnl / totalBuyCost * 100 : null)
+    : unrealizedRate;
+  const pnlLabel = isExited ? "已实现盈亏" : "盈亏";
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -122,21 +137,28 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
   return (
     <div className="flex flex-col h-full bg-gray-50 border-t border-gray-200">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-5 flex-wrap">
           <span className="text-sm font-semibold text-gray-700">持仓记录</span>
-          {totalShares > 0 && (
+          {hasHistory && (
             <>
-              <span className="text-sm text-gray-500">持仓 <span className="font-mono font-semibold text-gray-800">{totalShares.toLocaleString()}</span> 股</span>
-              <span className="text-sm text-gray-500">持仓平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
-              {currentPrice != null && (
+              {!isExited && (
                 <>
-                  <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
-                  <span className="text-sm text-gray-400">现总值 <span className="font-mono font-semibold text-gray-700">{(currentPrice * totalShares).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>
+                  <span className="text-sm text-gray-500">持仓 <span className="font-mono font-semibold text-gray-800">{totalShares.toLocaleString()}</span> 股</span>
+                  <span className="text-sm text-gray-500">持仓平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
+                  {currentPrice != null && (
+                    <>
+                      <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
+                      <span className="text-sm text-gray-400">现总值 <span className="font-mono font-semibold text-gray-700">{(currentPrice * totalShares).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>
+                    </>
+                  )}
                 </>
+              )}
+              {isExited && (
+                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">已清仓</span>
               )}
               {pnl != null && (
                 <span className={`text-base font-bold ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  盈亏 <span className="font-mono">{pnl >= 0 ? "+" : ""}{pnl.toFixed(0)}</span>
+                  {pnlLabel} <span className="font-mono">{pnl >= 0 ? "+" : ""}{pnl.toFixed(0)}</span>
                   {pnlRate != null && (
                     <span className="ml-1 text-sm">({pnlRate >= 0 ? "+" : ""}{pnlRate.toFixed(2)}%)</span>
                   )}
