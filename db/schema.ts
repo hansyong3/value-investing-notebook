@@ -4,6 +4,7 @@ export const stocks = pgTable("stocks", {
   id: serial("id").primaryKey(),
   symbol: text("symbol").notNull().unique(),
   name: text("name").notNull(),
+  order: integer("order").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

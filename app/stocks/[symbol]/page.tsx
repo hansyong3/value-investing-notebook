@@ -35,6 +35,9 @@ export default function StockPage() {
   const [newSymbol, setNewSymbol] = useState("");
   const [newName, setNewName] = useState("");
 
+  // Drag-and-drop state
+  const [dragId, setDragId] = useState<number | null>(null);
+
   const fetchStocks = useCallback(async () => {
     const res = await fetch("/api/stocks");
     const data = await res.json();
@@ -68,6 +71,22 @@ export default function StockPage() {
   useEffect(() => { fetchStocks(); }, [fetchStocks]);
   useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); }, [fetchPrice, fetchNotes, fetchHoldings]);
 
+  async function handleDrop(targetId: number) {
+    if (dragId === null || dragId === targetId) return;
+    const reordered = [...stocks];
+    const fromIdx = reordered.findIndex(s => s.id === dragId);
+    const toIdx = reordered.findIndex(s => s.id === targetId);
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    setStocks(reordered);
+    setDragId(null);
+    await fetch("/api/stocks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orders: reordered.map((s, i) => ({ id: s.id, order: i })) }),
+    });
+  }
+
   async function addStock(e: React.FormEvent) {
     e.preventDefault();
     if (!newSymbol || !newName) return;
@@ -93,11 +112,17 @@ export default function StockPage() {
         <div className="flex-1 overflow-y-auto">
           {stocks.map((stock) => (
             <div key={stock.id}
-              className={`group flex items-center border-b border-gray-100 transition-colors ${
+              draggable
+              onDragStart={() => setDragId(stock.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => handleDrop(stock.id)}
+              className={`group flex items-center border-b border-gray-100 transition-colors cursor-grab active:cursor-grabbing ${
                 stock.symbol === decodedSymbol ? "bg-blue-50 border-l-2 border-l-blue-500" : "hover:bg-gray-100"
-              }`}>
+              } ${dragId === stock.id ? "opacity-40" : ""}`}>
+              {/* Drag handle */}
+              <span className="pl-2 text-gray-300 group-hover:text-gray-400 text-xs select-none">⠿</span>
               <button onClick={() => router.push(`/stocks/${stock.symbol}`)}
-                className="flex-1 text-left px-3 py-2.5 min-w-0">
+                className="flex-1 text-left px-2 py-2.5 min-w-0">
                 <div className={`font-mono text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}>
                   {stock.symbol}
                 </div>
@@ -193,7 +218,7 @@ export default function StockPage() {
 
       {/* Right: notes */}
       <div className="flex-[2] min-w-0 overflow-hidden flex flex-col bg-white">
-        <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} />
+        <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
       </div>
     </div>
   );

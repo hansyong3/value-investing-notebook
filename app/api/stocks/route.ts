@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { stocks } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 
 export async function GET() {
-  const all = await db.select().from(stocks).orderBy(stocks.symbol);
+  const all = await db.select().from(stocks).orderBy(asc(stocks.order), asc(stocks.symbol));
   return NextResponse.json(all);
 }
 
@@ -18,6 +18,17 @@ export async function POST(req: Request) {
     .onConflictDoNothing()
     .returning();
   return NextResponse.json(stock);
+}
+
+export async function PATCH(req: Request) {
+  // Accepts { orders: [{id, order}] }
+  const { orders } = await req.json();
+  await Promise.all(
+    orders.map(({ id, order }: { id: number; order: number }) =>
+      db.update(stocks).set({ order }).where(eq(stocks.id, id))
+    )
+  );
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: Request) {

@@ -9,6 +9,7 @@ type Props = {
   notes: Note[];
   activeDate: string | null;
   onNotesSaved: () => void;
+  onExportPdf: () => void;
 };
 
 // content stored as "title\nbody"
@@ -20,7 +21,7 @@ function parseContent(content: string) {
 
 const COLLAPSED_ROWS = 3;
 
-export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: Props) {
+export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf }: Props) {
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [bodies, setBodies] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
@@ -146,10 +147,16 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
       {/* Header */}
       <div className="px-4 py-2.5 border-b border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
         <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length})</span></span>
-        <button onClick={addNewNote} disabled={adding}
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
-          {adding ? "创建中..." : "+ 添加笔记"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onExportPdf}
+            className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors">
+            导出 PDF
+          </button>
+          <button onClick={addNewNote} disabled={adding}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
+            {adding ? "创建中..." : "+ 添加笔记"}
+          </button>
+        </div>
       </div>
 
       {/* Notes list */}
