@@ -49,6 +49,19 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       for (const n of notes) if (!editingIds.current.has(n.id)) next[n.id] = parseContent(n.content).body;
       return next;
     });
+    // Auto-expand the 3 most recent notes on first load
+    setExpanded(prev => {
+      const alreadySet = Object.keys(prev).length > 0;
+      if (alreadySet) return prev;
+      const sorted = [...notes].sort((a, b) => {
+        if (a.starred !== b.starred) return a.starred ? -1 : 1;
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return b.id - a.id;
+      });
+      const next: Record<number, boolean> = {};
+      sorted.slice(0, 3).forEach(n => { next[n.id] = true; });
+      return next;
+    });
   }, [notes]);
 
   useEffect(() => {
