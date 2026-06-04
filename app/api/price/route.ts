@@ -1,26 +1,24 @@
 import { NextResponse } from "next/server";
 
-// stooq.com: free, no API key, returns CSV
-// US stocks: AAPL.US, HK stocks: 0700.HK, CN stocks: 600519.CN
-function toStooqSymbol(symbol: string) {
-  // If already has dot suffix, use as-is
-  if (symbol.includes(".")) return symbol.toLowerCase();
-  // Default to US market
-  return `${symbol.toLowerCase()}.us`;
+const AV_KEY = process.env.ALPHA_VANTAGE_KEY!;
+
+function avFunction(interval: string) {
+  if (interval === "1wk") return "TIME_SERIES_WEEKLY";
+  if (interval === "1mo") return "TIME_SERIES_MONTHLY";
+  return "TIME_SERIES_DAILY";
 }
 
-function intervalToStooq(interval: string) {
-  if (interval === "1wk") return "w";
-  if (interval === "1mo") return "m";
-  return "d";
+function avKey(interval: string) {
+  if (interval === "1wk") return "Weekly Time Series";
+  if (interval === "1mo") return "Monthly Time Series";
+  return "Time Series (Daily)";
 }
 
-function rangeToDate(range: string): string {
-  const days: Record<string, number> = {
+function daysForRange(range: string) {
+  const map: Record<string, number> = {
     "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825,
   };
-  const d = new Date(Date.now() - (days[range] ?? 730) * 86400000);
-  return d.toISOString().split("T")[0].replace(/-/g, "");
+  return map[range] ?? 730;
 }
 
 export async function GET(req: Request) {
@@ -30,41 +28,38 @@ export async function GET(req: Request) {
   const range = searchParams.get("range") || "2y";
 
   if (!symbol) return NextResponse.json({ error: "Missing symbol" }, { status: 400 });
+  if (!AV_KEY) return NextResponse.json({ error: "Missing ALPHA_VANTAGE_KEY env var" }, { status: 500 });
 
-  const stooqSymbol = toStooqSymbol(symbol);
-  const i = intervalToStooq(interval);
-  const d1 = rangeToDate(range);
-  const today = new Date().toISOString().split("T")[0].replace(/-/g, "");
-
-  const url = `https://stooq.com/q/d/l/?s=${stooqSymbol}&d1=${d1}&d2=${today}&i=${i}`;
+  const fn = avFunction(interval);
+  const seriesKey = avKey(interval);
+  const url = `https://www.alphavantage.co/query?function=${fn}&symbol=${encodeURIComponent(symbol)}&outputsize=full&apikey=${AV_KEY}`;
 
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      next: { revalidate: 3600 },
-    });
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    const json = await res.json();
 
-    const text = await res.text();
-
-    // stooq returns "No data" or CSV
-    if (!text || text.trim() === "No data" || !text.includes(",")) {
-      return NextResponse.json({ error: "No data from stooq" }, { status: 404 });
+    if (json["Note"] || json["Information"]) {
+      return NextResponse.json({ error: "API rate limit reached" }, { status: 429 });
     }
 
-    const lines = text.trim().split("\n").slice(1); // skip header
-    const bars = lines
-      .map((line) => {
-        const [date, open, high, low, close, volume] = line.split(",");
+    const series = json[seriesKey];
+    if (!series) return NextResponse.json({ error: "No data" }, { status: 404 });
+
+    const cutoff = new Date(Date.now() - daysForRange(range) * 86400000).toISOString().split("T")[0];
+
+    const bars = Object.entries(series)
+      .filter(([date]) => date >= cutoff)
+      .map(([date, v]: [string, unknown]) => {
+        const vals = v as Record<string, string>;
         return {
-          time: date?.trim(),
-          open: parseFloat(open),
-          high: parseFloat(high),
-          low: parseFloat(low),
-          close: parseFloat(close),
-          volume: parseInt(volume ?? "0"),
+          time: date,
+          open: parseFloat(vals["1. open"]),
+          high: parseFloat(vals["2. high"]),
+          low: parseFloat(vals["3. low"]),
+          close: parseFloat(vals["4. close"]),
+          volume: parseInt(vals["5. volume"] ?? "0"),
         };
       })
-      .filter((b) => b.time && !isNaN(b.close))
       .sort((a, b) => a.time.localeCompare(b.time));
 
     return NextResponse.json(bars);
