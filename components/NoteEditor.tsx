@@ -21,7 +21,7 @@ export default function NoteEditor({ content, onChange, onImageFile }: Props) {
     content,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
-      attributes: { class: "tiptap-body focus:outline-none px-3 py-2 min-h-[80px] text-lg text-gray-700 leading-relaxed" },
+      attributes: { class: "tiptap-body focus:outline-none px-3 py-2 min-h-[80px] text-xl text-gray-700 leading-relaxed" },
     },
   });
 
