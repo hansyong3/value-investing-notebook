@@ -181,7 +181,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               }`}>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => toggleStar(note.id, note.starred)}
-                    className={`text-base leading-none transition-colors ${note.starred ? "text-yellow-400 hover:text-yellow-300" : "text-gray-200 hover:text-yellow-400"}`}
+                    className={`text-base leading-none transition-colors ${note.starred ? "text-yellow-400 hover:text-yellow-300" : "text-gray-400 hover:text-yellow-400"}`}
                     title={note.starred ? "取消星标" : "星标置顶"}>
                     ★
                   </button>
