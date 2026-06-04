@@ -1,5 +1,28 @@
 import { NextResponse } from "next/server";
 
+// stooq.com: free, no API key, returns CSV
+// US stocks: AAPL.US, HK stocks: 0700.HK, CN stocks: 600519.CN
+function toStooqSymbol(symbol: string) {
+  // If already has dot suffix, use as-is
+  if (symbol.includes(".")) return symbol.toLowerCase();
+  // Default to US market
+  return `${symbol.toLowerCase()}.us`;
+}
+
+function intervalToStooq(interval: string) {
+  if (interval === "1wk") return "w";
+  if (interval === "1mo") return "m";
+  return "d";
+}
+
+function rangeToDate(range: string): string {
+  const days: Record<string, number> = {
+    "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825,
+  };
+  const d = new Date(Date.now() - (days[range] ?? 730) * 86400000);
+  return d.toISOString().split("T")[0].replace(/-/g, "");
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const symbol = searchParams.get("symbol");
@@ -8,34 +31,41 @@ export async function GET(req: Request) {
 
   if (!symbol) return NextResponse.json({ error: "Missing symbol" }, { status: 400 });
 
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
+  const stooqSymbol = toStooqSymbol(symbol);
+  const i = intervalToStooq(interval);
+  const d1 = rangeToDate(range);
+  const today = new Date().toISOString().split("T")[0].replace(/-/g, "");
 
+  const url = `https://stooq.com/q/d/l/?s=${stooqSymbol}&d1=${d1}&d2=${today}&i=${i}`;
+
+  try {
     const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Accept": "application/json",
-      },
+      headers: { "User-Agent": "Mozilla/5.0" },
       next: { revalidate: 3600 },
     });
 
-    if (!res.ok) throw new Error(`Yahoo returned ${res.status}`);
+    const text = await res.text();
 
-    const json = await res.json();
-    const result = json?.chart?.result?.[0];
-    if (!result) throw new Error("No data");
+    // stooq returns "No data" or CSV
+    if (!text || text.trim() === "No data" || !text.includes(",")) {
+      return NextResponse.json({ error: "No data from stooq" }, { status: 404 });
+    }
 
-    const timestamps: number[] = result.timestamp;
-    const quote = result.indicators.quote[0];
-
-    const bars = timestamps.map((ts: number, i: number) => ({
-      time: new Date(ts * 1000).toISOString().split("T")[0],
-      open: quote.open[i],
-      high: quote.high[i],
-      low: quote.low[i],
-      close: quote.close[i],
-      volume: quote.volume[i],
-    })).filter((b: { close: number }) => b.close != null);
+    const lines = text.trim().split("\n").slice(1); // skip header
+    const bars = lines
+      .map((line) => {
+        const [date, open, high, low, close, volume] = line.split(",");
+        return {
+          time: date?.trim(),
+          open: parseFloat(open),
+          high: parseFloat(high),
+          low: parseFloat(low),
+          close: parseFloat(close),
+          volume: parseInt(volume ?? "0"),
+        };
+      })
+      .filter((b) => b.time && !isNaN(b.close))
+      .sort((a, b) => a.time.localeCompare(b.time));
 
     return NextResponse.json(bars);
   } catch (e) {
