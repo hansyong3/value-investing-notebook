@@ -105,12 +105,25 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     onNotesSaved();
   }
 
-  async function uploadImage(noteId: number, file: File) {
+  async function uploadAndInsert(id: number, file: File) {
     const form = new FormData();
     form.append("file", file);
-    form.append("noteId", String(noteId));
-    await fetch("/api/upload", { method: "POST", body: form });
-    onNotesSaved();
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    const { url } = await res.json();
+    if (!url) return;
+    const insertion = `\n![](${url})\n`;
+    const newBody = (bodies[id] ?? "") + insertion;
+    setBodies((b) => ({ ...b, [id]: newBody }));
+    schedSave(id, titles[id] ?? "", newBody);
+  }
+
+  async function handlePaste(id: number, e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = Array.from(e.clipboardData.items);
+    const imageItem = items.find(item => item.type.startsWith("image/"));
+    if (!imageItem) return;
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (file) await uploadAndInsert(id, file);
   }
 
   async function addNewNote() {
@@ -222,37 +235,34 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               <textarea
                 value={bodies[note.id] ?? ""}
                 onChange={(e) => handleBody(note.id, e.target.value)}
+                onPaste={(e) => handlePaste(note.id, e)}
                 rows={isOpen
-                  ? Math.max(COLLAPSED_ROWS, (bodies[note.id] ?? "").split("\n").length + 2)
+                  ? Math.max(COLLAPSED_ROWS, (bodies[note.id] ?? "").replace(/!\[.*?\]\(.*?\)\n?/g, "").split("\n").length + 2)
                   : COLLAPSED_ROWS}
-                placeholder="写下你的分析和思考..."
+                placeholder="写下你的分析和思考...（可直接粘贴图片）"
                 className="w-full px-3 py-2 text-base text-gray-700 leading-relaxed resize-none focus:outline-none bg-white placeholder-gray-300 transition-all duration-200"
               />
 
-              {/* Footer: upload + expand */}
-              <div className="flex items-center justify-between px-3 pb-2.5">
-                <label className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-gray-500 cursor-pointer transition-colors">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  上传图片
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(note.id, f); }} />
-                </label>
+              {/* Inline images parsed from body */}
+              {(() => {
+                const imgUrls = [...(bodies[note.id] ?? "").matchAll(/!\[.*?\]\((https?:\/\/[^)]+)\)/g)].map(m => m[1]);
+                return imgUrls.length > 0 ? (
+                  <div className="px-3 pb-2 grid grid-cols-2 gap-2">
+                    {imgUrls.map((url, i) => (
+                      <img key={i} src={url} alt="" className="rounded-lg w-full object-cover max-h-40" />
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Footer: expand only */}
+              <div className="flex items-center justify-end px-3 pb-2.5">
                 <button onClick={() => setExpanded((e) => ({ ...e, [note.id]: !e[note.id] }))}
                   className="text-xs text-gray-400 hover:text-blue-500 transition-colors">
                   {isOpen ? "收起 ▲" : "展开 ▼"}
                 </button>
               </div>
 
-              {/* Images */}
-              {note.images.length > 0 && (
-                <div className="px-3 pb-3 grid grid-cols-2 gap-2">
-                  {note.images.map((img) => (
-                    <img key={img.id} src={img.url} alt="" className="rounded-lg w-full object-cover max-h-36" />
-                  ))}
-                </div>
-              )}
             </div>
           );
         })}
