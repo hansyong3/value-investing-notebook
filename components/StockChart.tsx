@@ -85,19 +85,26 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
     return () => { ro.disconnect(); chart.remove(); };
   }, []); // only init once
 
-  // Helper to build marker list
+  // Build markers: snap each note to the nearest bar date (within 7 days)
   function buildMarkers(noteList: Note[], barList: Bar[]) {
-    return noteList
-      .filter((n) => barList.some((b) => b.time === n.date))
-      .map((n) => ({
-        time: n.date,
-        position: "belowBar" as const,
-        color: "#3b82f6",
-        shape: "circle" as const,
-        text: "",
-        size: 0.6,
-      }))
-      .sort((a, b) => a.time.localeCompare(b.time));
+    if (barList.length === 0) return [];
+    const result: { time: string; position: "belowBar"; color: string; shape: "circle"; text: string; size: number }[] = [];
+    const seen = new Set<string>();
+
+    for (const n of noteList) {
+      const ts = new Date(n.date).getTime();
+      let nearest = "";
+      let minDiff = Infinity;
+      for (const b of barList) {
+        const diff = Math.abs(new Date(b.time).getTime() - ts);
+        if (diff < minDiff) { minDiff = diff; nearest = b.time; }
+      }
+      if (nearest && minDiff <= 7 * 86400000 && !seen.has(nearest)) {
+        seen.add(nearest);
+        result.push({ time: nearest, position: "belowBar", color: "#3b82f6", shape: "circle", text: "", size: 0.6 });
+      }
+    }
+    return result.sort((a, b) => a.time.localeCompare(b.time));
   }
 
   useEffect(() => {

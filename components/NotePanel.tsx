@@ -215,7 +215,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 value={titles[note.id] ?? ""}
                 onChange={(e) => handleTitle(note.id, e.target.value)}
                 placeholder="标题"
-                className="w-full px-3 pt-2.5 pb-1 text-sm font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white border-b border-gray-100"
+                className="w-full px-3 pt-2.5 pb-1 text-base font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white border-b border-gray-100"
               />
 
               {/* Body textarea */}
@@ -226,7 +226,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                   ? Math.max(COLLAPSED_ROWS, (bodies[note.id] ?? "").split("\n").length + 2)
                   : COLLAPSED_ROWS}
                 placeholder="写下你的分析和思考..."
-                className="w-full px-3 py-2 text-sm text-gray-700 leading-relaxed resize-none focus:outline-none bg-white placeholder-gray-300 transition-all duration-200"
+                className="w-full px-3 py-2 text-base text-gray-700 leading-relaxed resize-none focus:outline-none bg-white placeholder-gray-300 transition-all duration-200"
               />
 
               {/* Footer: upload + expand */}
