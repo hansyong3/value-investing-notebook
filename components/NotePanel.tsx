@@ -1,13 +1,8 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 type NoteImage = { id: number; url: string };
-type Note = {
-  id: number;
-  date: string;
-  content: string;
-  images: NoteImage[];
-};
+type Note = { id: number; date: string; content: string; images: NoteImage[] };
 
 type Props = {
   symbol: string;
@@ -17,33 +12,49 @@ type Props = {
 };
 
 export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: Props) {
-  const [editingDate, setEditingDate] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [contents, setContents] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [newNoteDate, setNewNoteDate] = useState("");
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // Scroll to active date when crosshair moves
+  // Sync contents from props
+  useEffect(() => {
+    setContents((prev) => {
+      const next = { ...prev };
+      for (const n of notes) {
+        if (!(n.date in next)) next[n.date] = n.content;
+      }
+      return next;
+    });
+  }, [notes]);
+
+  // Scroll to active date
   useEffect(() => {
     if (!activeDate) return;
-    // Find closest note by month
     const ym = activeDate.slice(0, 7);
-    const closest = notes.find((n) => n.date.startsWith(ym)) ?? notes.findLast((n) => n.date <= activeDate);
+    const closest = notes.find((n) => n.date.startsWith(ym)) ?? [...notes].reverse().find((n) => n.date <= activeDate);
     if (closest && noteRefs.current[closest.date]) {
       noteRefs.current[closest.date]?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [activeDate, notes]);
 
-  async function saveNote(date: string) {
-    setSaving(true);
+  const saveNote = useCallback(async (date: string, content: string) => {
+    setSaving((s) => ({ ...s, [date]: true }));
     await fetch("/api/notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol, date, content: editContent }),
+      body: JSON.stringify({ symbol, date, content }),
     });
-    setSaving(false);
-    setEditingDate(null);
+    setSaving((s) => ({ ...s, [date]: false }));
     onNotesSaved();
+  }, [symbol, onNotesSaved]);
+
+  function handleChange(date: string, value: string) {
+    setContents((c) => ({ ...c, [date]: value }));
+    // Debounce auto-save 1.5s
+    clearTimeout(saveTimers.current[date]);
+    saveTimers.current[date] = setTimeout(() => saveNote(date, value), 1500);
   }
 
   async function uploadImage(noteId: number, file: File) {
@@ -52,11 +63,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
     form.append("noteId", String(noteId));
     await fetch("/api/upload", { method: "POST", body: form });
     onNotesSaved();
-  }
-
-  function isHighlighted(note: Note) {
-    if (!activeDate) return false;
-    return note.date.slice(0, 7) === activeDate.slice(0, 7);
   }
 
   async function addNewNote() {
@@ -70,14 +76,22 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
     onNotesSaved();
   }
 
+  function isHighlighted(note: Note) {
+    if (!activeDate) return false;
+    return note.date.slice(0, 7) === activeDate.slice(0, 7);
+  }
+
+  const sorted = [...notes].reverse();
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-gray-800 flex items-center gap-2">
+    <div className="flex flex-col h-full bg-gray-50">
+      {/* Header */}
+      <div className="px-4 py-2.5 border-b border-gray-200 bg-white flex items-center gap-2">
         <input
           type="date"
           value={newNoteDate}
           onChange={(e) => setNewNoteDate(e.target.value)}
-          className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+          className="border border-gray-300 rounded px-2 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-blue-400"
         />
         <button
           onClick={addNewNote}
@@ -88,93 +102,61 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {notes.length === 0 && (
-          <p className="text-gray-500 text-sm text-center mt-8">还没有笔记，选择日期添加第一条</p>
+      {/* Notes list */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {sorted.length === 0 && (
+          <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，选择日期添加第一条</p>
         )}
 
-        {[...notes].reverse().map((note) => (
+        {sorted.map((note) => (
           <div
             key={note.id}
             ref={(el) => { noteRefs.current[note.date] = el; }}
-            className={`rounded-xl border p-4 transition-all duration-300 ${
+            className={`rounded-xl border bg-white transition-all duration-300 overflow-hidden ${
               isHighlighted(note)
-                ? "border-blue-500 bg-blue-950/30 shadow-lg shadow-blue-900/20"
-                : "border-gray-800 bg-gray-900"
+                ? "border-blue-400 shadow-md shadow-blue-100 ring-1 ring-blue-300"
+                : "border-gray-200 shadow-sm"
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className={`text-sm font-medium ${isHighlighted(note) ? "text-blue-400" : "text-gray-400"}`}>
+            {/* Date row */}
+            <div className={`flex items-center justify-between px-3 py-2 border-b ${
+              isHighlighted(note) ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"
+            }`}>
+              <span className={`text-xs font-semibold ${isHighlighted(note) ? "text-blue-600" : "text-gray-500"}`}>
                 {note.date}
               </span>
-              <button
-                onClick={() => {
-                  setEditingDate(note.date);
-                  setEditContent(note.content);
-                }}
-                className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-              >
-                编辑
-              </button>
+              {saving[note.date] && (
+                <span className="text-xs text-gray-400">保存中...</span>
+              )}
             </div>
 
-            {editingDate === note.date ? (
-              <div className="space-y-2">
-                <textarea
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  rows={5}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
-                  placeholder="记录你的分析思考..."
-                  autoFocus
-                />
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => saveNote(note.date)}
-                    disabled={saving}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs px-3 py-1.5 rounded transition-colors"
-                  >
-                    {saving ? "保存中..." : "保存"}
-                  </button>
-                  <button
-                    onClick={() => setEditingDate(null)}
-                    className="text-gray-500 hover:text-gray-300 text-xs px-3 py-1.5 rounded transition-colors"
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
-                {note.content || <span className="text-gray-600 italic">空笔记，点击编辑</span>}
-              </p>
-            )}
+            {/* Editable content */}
+            <textarea
+              value={contents[note.date] ?? note.content}
+              onChange={(e) => handleChange(note.date, e.target.value)}
+              rows={4}
+              placeholder="写下你的分析和思考..."
+              className="w-full px-3 py-2.5 text-sm text-gray-800 leading-relaxed resize-none focus:outline-none bg-white placeholder-gray-300"
+            />
 
+            {/* Images */}
             {note.images.length > 0 && (
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="px-3 pb-2 grid grid-cols-2 gap-2">
                 {note.images.map((img) => (
-                  <img key={img.id} src={img.url} alt="" className="rounded-lg w-full object-cover max-h-40" />
+                  <img key={img.id} src={img.url} alt="" className="rounded-lg w-full object-cover max-h-36" />
                 ))}
               </div>
             )}
 
-            {note.id && (
-              <label className="mt-3 flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 cursor-pointer transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                上传图片
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) uploadImage(note.id, file);
-                  }}
-                />
-              </label>
-            )}
+            {/* Upload image */}
+            <label className="flex items-center gap-1.5 px-3 pb-2.5 text-xs text-gray-300 hover:text-gray-500 cursor-pointer transition-colors w-fit">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              上传图片
+              <input type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(note.id, f); }} />
+            </label>
           </div>
         ))}
       </div>
