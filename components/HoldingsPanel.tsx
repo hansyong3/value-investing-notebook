@@ -137,7 +137,10 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
                 </span>
               )}
               {currentPrice != null && (
-                <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
+                <>
+                  <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
+                  <span className="text-sm text-gray-400">现总值 <span className="font-mono font-semibold text-gray-700">{(currentPrice * totalShares).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>
+                </>
               )}
             </>
           )}
