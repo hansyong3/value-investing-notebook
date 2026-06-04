@@ -171,55 +171,64 @@ export default function StockPage() {
         </div>
       </aside>
 
-      {/* Center: chart + holdings */}
-      <div className="flex flex-col w-[48%] flex-shrink-0 border-r border-gray-200">
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 px-4 h-11 border-b border-gray-200 flex-shrink-0 bg-white">
-          <span className="font-mono font-bold text-blue-600">{decodedSymbol}</span>
-          <span className="text-gray-400 text-sm">{stocks.find(s => s.symbol === decodedSymbol)?.name}</span>
-          <div className="ml-auto flex items-center gap-0.5">
-            {INTERVALS.map(i => (
-              <button key={i.value} onClick={() => setInterval(i.value)}
-                className={`px-2 py-1 rounded text-xs transition-colors ${interval === i.value ? "bg-blue-600 text-white" : "text-gray-500 hover:text-gray-800"}`}>
-                {i.label}
-              </button>
-            ))}
-            <div className="w-px h-3 bg-gray-300 mx-1" />
-            {RANGES.map(r => (
-              <button key={r.value} onClick={() => setRange(r.value)}
-                className={`px-2 py-1 rounded text-xs transition-colors ${range === r.value ? "bg-gray-200 text-gray-800 font-medium" : "text-gray-500 hover:text-gray-800"}`}>
-                {r.label}
-              </button>
-            ))}
+      {decodedSymbol === "NOTES" ? (
+        /* NOTES: full-width notes only, no chart */
+        <div className="flex-1 overflow-hidden flex flex-col bg-white">
+          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
+        </div>
+      ) : (
+        <>
+          {/* Center: chart + holdings */}
+          <div className="flex flex-col w-[48%] flex-shrink-0 border-r border-gray-200">
+            {/* Toolbar */}
+            <div className="flex items-center gap-2 px-4 h-11 border-b border-gray-200 flex-shrink-0 bg-white">
+              <span className="font-mono font-bold text-blue-600">{decodedSymbol}</span>
+              <span className="text-gray-400 text-sm">{stocks.find(s => s.symbol === decodedSymbol)?.name}</span>
+              <div className="ml-auto flex items-center gap-0.5">
+                {INTERVALS.map(i => (
+                  <button key={i.value} onClick={() => setInterval(i.value)}
+                    className={`px-2 py-1 rounded text-xs transition-colors ${interval === i.value ? "bg-blue-600 text-white" : "text-gray-500 hover:text-gray-800"}`}>
+                    {i.label}
+                  </button>
+                ))}
+                <div className="w-px h-3 bg-gray-300 mx-1" />
+                {RANGES.map(r => (
+                  <button key={r.value} onClick={() => setRange(r.value)}
+                    className={`px-2 py-1 rounded text-xs transition-colors ${range === r.value ? "bg-gray-200 text-gray-800 font-medium" : "text-gray-500 hover:text-gray-800"}`}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div className="relative flex-[11] min-h-0">
+              {chartLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
+                  <span className="text-gray-400 text-sm">加载行情...</span>
+                </div>
+              )}
+              {chartError && !chartLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10">
+                  <p className="text-gray-400 text-sm">行情数据加载失败</p>
+                  <button onClick={fetchPrice} className="text-xs text-blue-500 border border-blue-300 px-3 py-1 rounded hover:bg-blue-50 transition-colors">重试</button>
+                </div>
+              )}
+              <StockChart data={bars} notes={notes} onCrosshairMove={setActiveDate} />
+            </div>
+
+            {/* Holdings */}
+            <div className="flex-[9] min-h-0 overflow-hidden">
+              <HoldingsPanel symbol={decodedSymbol} holdings={holdingsList} onSaved={fetchHoldings} />
+            </div>
           </div>
-        </div>
 
-        {/* Chart - 55% height */}
-        <div className="relative flex-[11] min-h-0">
-          {chartLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
-              <span className="text-gray-400 text-sm">加载行情...</span>
-            </div>
-          )}
-          {chartError && !chartLoading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10">
-              <p className="text-gray-400 text-sm">行情数据加载失败</p>
-              <button onClick={fetchPrice} className="text-xs text-blue-500 border border-blue-300 px-3 py-1 rounded hover:bg-blue-50 transition-colors">重试</button>
-            </div>
-          )}
-          <StockChart data={bars} notes={notes} onCrosshairMove={setActiveDate} />
-        </div>
-
-        {/* Holdings - 45% height */}
-        <div className="flex-[9] min-h-0 overflow-hidden">
-          <HoldingsPanel symbol={decodedSymbol} holdings={holdingsList} onSaved={fetchHoldings} />
-        </div>
-      </div>
-
-      {/* Right: notes */}
-      <div className="flex-[2] min-w-0 overflow-hidden flex flex-col bg-white">
-        <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
-      </div>
+          {/* Right: notes */}
+          <div className="flex-[2] min-w-0 overflow-hidden flex flex-col bg-white">
+            <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
