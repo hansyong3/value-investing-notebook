@@ -127,7 +127,7 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
           {totalShares > 0 && (
             <>
               <span className="text-sm text-gray-500">持仓 <span className="font-mono font-semibold text-gray-800">{totalShares.toLocaleString()}</span> 股</span>
-              <span className="text-sm text-gray-500">持有平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
+              <span className="text-sm text-gray-500">持仓平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
               {currentPrice != null && (
                 <>
                   <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
