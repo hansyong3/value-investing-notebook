@@ -38,6 +38,22 @@ export async function POST(req: Request) {
   return NextResponse.json(row);
 }
 
+export async function PATCH(req: Request) {
+  const { id, type, date, shares, price, currency, fee, note } = await req.json();
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+  const [row] = await db.update(holdings).set({
+    type, date,
+    shares: String(shares),
+    price: String(price),
+    currency: currency || "USD",
+    fee: String(fee || 0),
+    note: note || "",
+  }).where(eq(holdings.id, id)).returning();
+
+  return NextResponse.json(row);
+}
+
 export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = Number(searchParams.get("id"));
