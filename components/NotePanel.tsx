@@ -105,25 +105,23 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     onNotesSaved();
   }
 
-  async function uploadAndInsert(id: number, file: File) {
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: form });
-    const { url } = await res.json();
-    if (!url) return;
-    const insertion = `\n![](${url})\n`;
-    const newBody = (bodies[id] ?? "") + insertion;
-    setBodies((b) => ({ ...b, [id]: newBody }));
-    schedSave(id, titles[id] ?? "", newBody);
-  }
-
   async function handlePaste(id: number, e: React.ClipboardEvent<HTMLTextAreaElement>) {
     const items = Array.from(e.clipboardData.items);
     const imageItem = items.find(item => item.type.startsWith("image/"));
     if (!imageItem) return;
     e.preventDefault();
     const file = imageItem.getAsFile();
-    if (file) await uploadAndInsert(id, file);
+    if (!file) return;
+    // Convert to base64 and insert inline
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      const insertion = `\n![](${base64})\n`;
+      const newBody = (bodies[id] ?? "") + insertion;
+      setBodies((b) => ({ ...b, [id]: newBody }));
+      schedSave(id, titles[id] ?? "", newBody);
+    };
+    reader.readAsDataURL(file);
   }
 
   async function addNewNote() {
