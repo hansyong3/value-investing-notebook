@@ -4,9 +4,31 @@ import Link from "next/link";
 
 export default function BackupPage() {
   const [importing, setImporting] = useState(false);
+  const [githubBacking, setGithubBacking] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleGithubBackup() {
+    setGithubBacking(true);
+    setResult(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/cron/backup", {
+        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ""}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setResult(`已备份到 GitHub：${data.counts.stocks} 个标的、${data.counts.notes} 条笔记、${data.counts.holdings} 条持仓记录`);
+      } else {
+        setError(data.error || "备份失败");
+      }
+    } catch {
+      setError("备份失败，请检查 GitHub 配置");
+    } finally {
+      setGithubBacking(false);
+    }
+  }
 
   async function handleExport() {
     const res = await fetch("/api/backup");
@@ -62,10 +84,21 @@ export default function BackupPage() {
           <h1 className="text-2xl font-bold">数据备份与恢复</h1>
         </div>
 
+        {/* GitHub Auto Backup */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-1">🔄 自动备份到 GitHub</h2>
+          <p className="text-sm text-gray-500 mb-1">每周一自动备份到 <code className="bg-gray-100 px-1 rounded text-xs">hansyong3/investing-data-backup</code>，有完整版本历史。</p>
+          <p className="text-sm text-gray-400 mb-4">也可以点下方按钮立即手动备份一次。</p>
+          <button onClick={handleGithubBackup} disabled={githubBacking}
+            className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white px-5 py-2.5 rounded-xl font-medium transition-colors">
+            {githubBacking ? "备份中..." : "立即备份到 GitHub"}
+          </button>
+        </div>
+
         {/* Export */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-1">📤 导出备份</h2>
-          <p className="text-sm text-gray-500 mb-4">将所有标的、笔记、持仓记录导出为 JSON 文件，保存到本地。建议每周备份一次。</p>
+          <h2 className="text-lg font-semibold mb-1">📤 下载到本地</h2>
+          <p className="text-sm text-gray-500 mb-4">将所有数据导出为 JSON 文件，保存到本地电脑或云盘。</p>
           <button onClick={handleExport}
             className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-medium transition-colors">
             下载备份文件
