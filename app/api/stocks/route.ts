@@ -19,3 +19,11 @@ export async function POST(req: Request) {
     .returning();
   return NextResponse.json(stock);
 }
+
+export async function DELETE(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const id = Number(searchParams.get("id"));
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  await db.delete(stocks).where(eq(stocks.id, id));
+  return NextResponse.json({ ok: true });
+}

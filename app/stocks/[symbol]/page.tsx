@@ -92,15 +92,35 @@ export default function StockPage() {
 
         <div className="flex-1 overflow-y-auto">
           {stocks.map((stock) => (
-            <button key={stock.id} onClick={() => router.push(`/stocks/${stock.symbol}`)}
-              className={`w-full text-left px-3 py-2.5 border-b border-gray-100 transition-colors ${
+            <div key={stock.id}
+              className={`group flex items-center border-b border-gray-100 transition-colors ${
                 stock.symbol === decodedSymbol ? "bg-blue-50 border-l-2 border-l-blue-500" : "hover:bg-gray-100"
               }`}>
-              <div className={`font-mono text-sm font-semibold ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}>
-                {stock.symbol}
-              </div>
-              <div className="text-xs text-gray-400 truncate">{stock.name}</div>
-            </button>
+              <button onClick={() => router.push(`/stocks/${stock.symbol}`)}
+                className="flex-1 text-left px-3 py-2.5 min-w-0">
+                <div className={`font-mono text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}>
+                  {stock.symbol}
+                </div>
+                <div className="text-xs text-gray-400 truncate">{stock.name}</div>
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirm(`确定删除 ${stock.symbol}？相关笔记和持仓也会一并删除。`)) return;
+                  await fetch(`/api/stocks?id=${stock.id}`, { method: "DELETE" });
+                  await fetchStocks();
+                  if (stock.symbol === decodedSymbol && stocks.length > 1) {
+                    const next = stocks.find(s => s.id !== stock.id);
+                    if (next) router.push(`/stocks/${next.symbol}`);
+                    else router.push("/");
+                  } else if (stocks.length <= 1) {
+                    router.push("/");
+                  }
+                }}
+                className="opacity-0 group-hover:opacity-100 mr-2 text-gray-300 hover:text-red-400 transition-all text-xs px-1 py-0.5 rounded"
+              >
+                ✕
+              </button>
+            </div>
           ))}
         </div>
 
