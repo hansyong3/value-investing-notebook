@@ -129,7 +129,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
             >
               {/* Date + title row */}
               {(() => {
-                const firstLine = (contents[note.id] ?? "").split("\n")[0].trim();
+                const firstLine = (contents[note.id] ?? note.content ?? "").split("\n")[0].trim();
                 return (
                   <div className={`px-3 py-2 border-b ${isHighlighted(note) ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
                     <div className="flex items-center justify-between">
