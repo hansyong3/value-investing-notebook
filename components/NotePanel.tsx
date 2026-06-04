@@ -162,7 +162,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   });
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col flex-1 min-h-0 bg-gray-50">
       {/* Header */}
       <div className="px-4 py-2.5 border-b border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
         <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length})</span></span>
