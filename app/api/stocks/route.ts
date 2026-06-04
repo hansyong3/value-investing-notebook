@@ -9,12 +9,12 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { symbol, name } = await req.json();
+  const { symbol, name, notebook } = await req.json();
   if (!symbol || !name) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
   const [stock] = await db
     .insert(stocks)
-    .values({ symbol: symbol.toUpperCase(), name })
+    .values({ symbol: symbol.toUpperCase(), name, notebook: !!notebook })
     .onConflictDoNothing()
     .returning();
   return NextResponse.json(stock);

@@ -11,7 +11,7 @@ export default function HomePage() {
       await fetch("/api/stocks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol: "NOTES", name: "通用笔记" }),
+        body: JSON.stringify({ symbol: "NOTES", name: "通用笔记", notebook: true }),
       });
       const res = await fetch("/api/stocks");
       const stocks = await res.json();

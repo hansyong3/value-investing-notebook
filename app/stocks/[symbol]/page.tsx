@@ -9,7 +9,7 @@ const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false
 
 type Bar = { time: string; open: number; high: number; low: number; close: number };
 type Note = { id: number; date: string; content: string; starred: boolean; images: { id: number; url: string }[] };
-type Stock = { id: number; symbol: string; name: string };
+type Stock = { id: number; symbol: string; name: string; notebook: boolean };
 type Holding = { id: number; type: string; date: string; shares: string; price: string; currency: string; fee: string; note: string };
 
 const INTERVALS = [{ label: "日K", value: "1d" }, { label: "周K", value: "1wk" }, { label: "月K", value: "1mo" }];
@@ -183,8 +183,8 @@ export default function StockPage() {
           ))}
         </div>
 
-        {/* Add stock */}
-        <div className="border-t border-gray-200 p-2">
+        {/* Add stock / notebook */}
+        <div className="border-t border-gray-200 p-2 space-y-1">
           {addingStock ? (
             <form onSubmit={addStock} className="space-y-1.5">
               <input autoFocus value={newSymbol} onChange={e => setNewSymbol(e.target.value.toUpperCase())}
@@ -202,10 +202,26 @@ export default function StockPage() {
               <span>+</span> 添加标的
             </button>
           )}
+          <button
+            onClick={async () => {
+              const name = prompt("笔记本名称：");
+              if (!name) return;
+              const symbol = "NB_" + Date.now();
+              await fetch("/api/stocks", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ symbol, name, notebook: true }),
+              });
+              await fetchStocks();
+              router.push(`/stocks/${symbol}`);
+            }}
+            className="w-full text-xs text-gray-400 hover:text-purple-600 py-1.5 flex items-center justify-center gap-1 transition-colors">
+            <span>+</span> 添加笔记本
+          </button>
         </div>
       </aside>
 
-      {decodedSymbol === "NOTES" ? (
+      {stocks.find(s => s.symbol === decodedSymbol)?.notebook ? (
         /* NOTES: full-width notes only, no chart */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
           <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} centered />
