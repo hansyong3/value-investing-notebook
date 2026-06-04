@@ -13,6 +13,7 @@ type Props = {
   activeDate: string | null;
   onNotesSaved: () => void;
   onExportPdf: () => void;
+  centered?: boolean;
 };
 
 function parseContent(content: string) {
@@ -26,7 +27,7 @@ function stripHtml(html: string) {
   return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf }: Props) {
+export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, centered }: Props) {
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [bodies, setBodies] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
@@ -163,8 +164,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       </div>
 
       {/* Notes */}
-      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto py-6">
-        <div className="max-w-4xl mx-auto px-6 space-y-4">
+      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto py-4">
+        <div className={`${centered ? "max-w-4xl mx-auto px-8" : "px-3"} space-y-4`}>
         {sorted.length === 0 && (
           <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
         )}

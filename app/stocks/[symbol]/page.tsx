@@ -174,7 +174,7 @@ export default function StockPage() {
       {decodedSymbol === "NOTES" ? (
         /* NOTES: full-width notes only, no chart */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
-          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
+          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} centered />
         </div>
       ) : (
         <>
