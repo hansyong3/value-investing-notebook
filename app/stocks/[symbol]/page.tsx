@@ -127,7 +127,7 @@ export default function StockPage() {
       </aside>
 
       {/* Center: chart + holdings */}
-      <div className="flex flex-col flex-[3] min-w-0 border-r border-gray-200">
+      <div className="flex flex-col flex-[2] min-w-0 border-r border-gray-200">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 h-11 border-b border-gray-200 flex-shrink-0 bg-white">
           <span className="font-mono font-bold text-blue-600">{decodedSymbol}</span>
