@@ -136,8 +136,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
                 </span>
                 <div className="flex items-center gap-2">
                   {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
-                  <button onClick={() => deleteNote(note.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors text-sm leading-none">✕</button>
+                  <button onClick={() => { if (confirm("确定删除这条笔记？")) deleteNote(note.id); }}
+                    className="text-gray-400 hover:text-red-500 transition-colors text-xs border border-gray-200 hover:border-red-300 px-1.5 py-0.5 rounded">删除</button>
                 </div>
               </div>
 
@@ -145,7 +145,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
               <textarea
                 value={contents[note.id] ?? ""}
                 onChange={(e) => handleChange(note.id, e.target.value)}
-                rows={isOpen ? 10 : COLLAPSED_ROWS}
+                rows={isOpen ? Math.max(COLLAPSED_ROWS, (contents[note.id] ?? "").split("\n").length + 2) : COLLAPSED_ROWS}
                 placeholder="写下你的分析和思考..."
                 className="w-full px-3 py-2.5 text-sm text-gray-800 leading-relaxed resize-none focus:outline-none bg-white placeholder-gray-300 transition-all duration-200"
               />
