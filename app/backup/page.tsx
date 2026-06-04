@@ -19,7 +19,7 @@ export default function BackupPage() {
       if (data.ok) {
         setResult(`已备份到 GitHub：${data.counts.stocks} 个标的、${data.counts.notes} 条笔记、${data.counts.holdings} 条持仓记录`);
       } else {
-        setError(`${data.error}${data.debug ? " | " + JSON.stringify(data.debug) : ""}`);
+        setError(`${data.error}${data.detail ? " | " + JSON.stringify(data.detail) : ""}`);
       }
     } catch {
       setError("备份失败，请检查 GitHub 配置");

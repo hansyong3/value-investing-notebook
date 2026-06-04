@@ -57,12 +57,13 @@ export async function GET(req: Request) {
   } catch { /* file doesn't exist yet */ }
 
   // Commit to GitHub
-  const body: Record<string, string> = {
+  const body: Record<string, unknown> = {
     message: `Auto backup ${new Date().toISOString().split("T")[0]}`,
     content,
-    branch: "main",
   };
   if (sha) body.sha = sha;
+  // Only specify branch if repo already has commits
+  if (sha) body.branch = "main";
 
   const res = await fetch(apiBase, {
     method: "PUT",
@@ -71,8 +72,10 @@ export async function GET(req: Request) {
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    return NextResponse.json({ error: "GitHub push failed", detail: err }, { status: 500 });
+    const errText = await res.text();
+    let errJson: unknown;
+    try { errJson = JSON.parse(errText); } catch { errJson = errText; }
+    return NextResponse.json({ error: "GitHub push failed", detail: errJson }, { status: 500 });
   }
 
   return NextResponse.json({
