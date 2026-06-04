@@ -22,6 +22,7 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<any>(null);
   const notesRef = useRef<Note[]>(notes);
+  const markerDatesRef = useRef<Map<string, Note[]>>(new Map()); // barDate → notes
   const [tooltip, setTooltip] = useState<Tooltip>(null);
 
   notesRef.current = notes;
@@ -49,8 +50,8 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
       const date = param.time ? (param.time as string) : null;
       onCrosshairMove(date);
       if (!date || !param.point) { setTooltip(null); return; }
-      const ts = new Date(date).getTime();
-      const matched = notesRef.current.filter(n => Math.abs(new Date(n.date).getTime() - ts) <= 3 * 86400000);
+      // Only show tooltip on bars that have a blue dot marker
+      const matched = markerDatesRef.current.get(date) ?? [];
       setTooltip(matched.length > 0 ? { x: param.point.x, y: param.point.y, notes: matched } : null);
     });
 
@@ -72,9 +73,8 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
 
   function updateMarkers(barList: Bar[], noteList: Note[]) {
     if (!seriesRef.current) return;
-    // Snap each note to nearest bar date
-    const markers: { time: string; position: "belowBar"; color: string; shape: "circle"; text: string; size: number }[] = [];
-    const seen = new Set<string>();
+    // Snap each note to nearest bar date, group notes by bar date
+    const barDateMap = new Map<string, Note[]>(); // barDate → notes
     for (const n of noteList) {
       const ts = new Date(n.date).getTime();
       let nearest = ""; let minDiff = Infinity;
@@ -82,12 +82,16 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
         const d = Math.abs(new Date(b.time).getTime() - ts);
         if (d < minDiff) { minDiff = d; nearest = b.time; }
       }
-      if (nearest && !seen.has(nearest)) {
-        seen.add(nearest);
-        markers.push({ time: nearest, position: "belowBar", color: "#3b82f6", shape: "circle", text: "", size: 0.8 });
+      if (nearest) {
+        if (!barDateMap.has(nearest)) barDateMap.set(nearest, []);
+        barDateMap.get(nearest)!.push(n);
       }
     }
-    markers.sort((a, b) => a.time.localeCompare(b.time));
+    markerDatesRef.current = barDateMap;
+
+    const markers = Array.from(barDateMap.keys())
+      .map(time => ({ time, position: "belowBar" as const, color: "#3b82f6", shape: "circle" as const, text: "", size: 0.8 }))
+      .sort((a, b) => a.time.localeCompare(b.time));
 
     if (markersRef.current) {
       markersRef.current.setMarkers(markers);
