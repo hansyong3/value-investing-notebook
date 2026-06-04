@@ -13,7 +13,7 @@ type Stock = { id: number; symbol: string; name: string };
 type Holding = { id: number; type: string; date: string; shares: string; price: string; currency: string; fee: string; note: string };
 
 const INTERVALS = [{ label: "日K", value: "1d" }, { label: "周K", value: "1wk" }, { label: "月K", value: "1mo" }];
-const RANGES = [{ label: "3月", value: "3mo" }, { label: "6月", value: "6mo" }, { label: "1年", value: "1y" }, { label: "2年", value: "2y" }, { label: "5年", value: "5y" }];
+const RANGES = [{ label: "3月", value: "3mo" }, { label: "6月", value: "6mo" }, { label: "1年", value: "1y" }, { label: "2年", value: "2y" }, { label: "5年", value: "5y" }, { label: "10年", value: "10y" }];
 
 export default function StockPage() {
   const { symbol } = useParams<{ symbol: string }>();

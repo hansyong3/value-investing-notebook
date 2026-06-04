@@ -10,10 +10,22 @@ export async function GET(req: Request) {
 
   if (!symbol) return NextResponse.json({ error: "Missing symbol" }, { status: 400 });
 
+  // Normalize HK stock symbols: Yahoo Finance uses 0700.HK not 00700.HK
+  function normalizeSymbol(s: string) {
+    const upper = s.toUpperCase();
+    if (upper.endsWith(".HK")) {
+      const code = upper.slice(0, -3).replace(/^0+/, "") || "0";
+      // HK stocks are 4 digits, pad with zeros
+      return code.padStart(4, "0") + ".HK";
+    }
+    return upper;
+  }
+  const normalized = normalizeSymbol(symbol);
+
   // Try multiple Yahoo Finance endpoints
   const endpoints = [
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`,
-    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(normalized)}?interval=${interval}&range=${range}&includePrePost=false`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(normalized)}?interval=${interval}&range=${range}&includePrePost=false`,
   ];
 
   for (const url of endpoints) {
