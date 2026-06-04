@@ -105,16 +105,12 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     onNotesSaved();
   }
 
-  function insertImageFile(id: number, file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      const insertion = `\n![](${base64})\n\n`;
-      const newBody = (bodies[id] ?? "") + insertion;
-      setBodies((b) => ({ ...b, [id]: newBody }));
-      schedSave(id, titles[id] ?? "", newBody);
-    };
-    reader.readAsDataURL(file);
+  async function uploadImage(noteId: number, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("noteId", String(noteId));
+    await fetch("/api/upload", { method: "POST", body: form });
+    onNotesSaved();
   }
 
   function handlePaste(id: number, e: React.ClipboardEvent<HTMLTextAreaElement>) {
@@ -123,13 +119,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     if (!imageItem) return;
     e.preventDefault();
     const file = imageItem.getAsFile();
-    if (file) insertImageFile(id, file);
+    if (file) uploadImage(id, file);
   }
 
-  function handleDrop(id: number, e: React.DragEvent<HTMLTextAreaElement>) {
+  function handleDropZone(id: number, e: React.DragEvent) {
     e.preventDefault();
+    e.stopPropagation();
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-    files.forEach(f => insertImageFile(id, f));
+    files.forEach(f => uploadImage(id, f));
   }
 
   async function addNewNote() {
@@ -242,34 +239,31 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 value={bodies[note.id] ?? ""}
                 onChange={(e) => handleBody(note.id, e.target.value)}
                 onPaste={(e) => handlePaste(note.id, e)}
-                onDrop={(e) => handleDrop(note.id, e)}
-                onDragOver={(e) => e.preventDefault()}
                 rows={isOpen
-                  ? Math.max(COLLAPSED_ROWS, (bodies[note.id] ?? "").replace(/!\[.*?\]\(.*?\)\n?/g, "").split("\n").length + 2)
+                  ? Math.max(COLLAPSED_ROWS, (bodies[note.id] ?? "").split("\n").length + 2)
                   : COLLAPSED_ROWS}
-                placeholder="写下你的分析和思考...（可直接粘贴图片）"
+                placeholder="写下你的分析和思考..."
                 className="w-full px-3 py-2 text-base text-gray-700 leading-relaxed resize-none focus:outline-none bg-white placeholder-gray-300 transition-all duration-200"
               />
 
-              {/* Inline images parsed from body */}
-              {(() => {
-                // Parse ![](url) — base64 urls can contain ) so match greedily to last )
-                const body = bodies[note.id] ?? "";
-                const imgUrls: string[] = [];
-                const re = /!\[.*?\]\(([\s\S]*?)\n/g;
-                let match;
-                while ((match = re.exec(body + "\n")) !== null) {
-                  const url = match[1].trim().replace(/\)$/, "");
-                  if (url.startsWith("data:image/") || url.startsWith("http")) imgUrls.push(url);
-                }
-                return imgUrls.length > 0 ? (
-                  <div className="px-3 pb-2 grid grid-cols-2 gap-2">
-                    {imgUrls.map((url, i) => (
-                      <img key={i} src={url} alt="" className="rounded-lg w-full object-cover max-h-40" />
+              {/* Image drop zone + display */}
+              <div
+                onDrop={(e) => handleDropZone(note.id, e)}
+                onDragOver={(e) => e.preventDefault()}
+                className="mx-3 mb-2"
+              >
+                {note.images.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {note.images.map((img) => (
+                      <img key={img.id} src={img.url} alt="" className="rounded-lg w-full object-cover max-h-40 cursor-pointer" />
                     ))}
                   </div>
-                ) : null;
-              })()}
+                ) : (
+                  <div className="border border-dashed border-gray-200 rounded-lg py-2 text-center text-xs text-gray-300 hover:border-gray-300 hover:text-gray-400 transition-colors">
+                    拖放图片到此处，或在正文框粘贴（Cmd+V）
+                  </div>
+                )}
+              </div>
 
               {/* Footer: expand only */}
               <div className="flex items-center justify-end px-3 pb-2.5">

@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { db } from "@/db";
+import { noteImages } from "@/db/schema";
 
 export async function POST(req: Request) {
   const form = await req.formData();
   const file = form.get("file") as File;
-  if (!file) return NextResponse.json({ error: "Missing file" }, { status: 400 });
+  const noteId = Number(form.get("noteId"));
 
-  const blob = await put(`notes/${Date.now()}-${file.name}`, file, { access: "public" });
-  return NextResponse.json({ url: blob.url });
+  if (!file || !noteId) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+
+  // Convert to base64 data URI and store in DB (no external storage needed)
+  const buffer = await file.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString("base64");
+  const dataUrl = `data:${file.type};base64,${base64}`;
+
+  const [image] = await db
+    .insert(noteImages)
+    .values({ noteId, url: dataUrl })
+    .returning();
+
+  return NextResponse.json(image);
 }
