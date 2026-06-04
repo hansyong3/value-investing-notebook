@@ -206,7 +206,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 value={titles[note.id] ?? ""}
                 onChange={(e) => handleTitle(note.id, e.target.value)}
                 placeholder="标题"
-                className="w-full px-3 pt-2.5 pb-1 text-base font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white border-b border-gray-100"
+                className="w-full px-3 pt-2.5 pb-1 text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white border-b border-gray-100"
               />
 
               {/* Body: collapsed = 4-line text preview, expanded = rich editor */}
@@ -218,7 +218,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 />
               ) : (
                 <div
-                  className="px-3 py-2 text-sm text-gray-500 leading-relaxed line-clamp-4 cursor-pointer"
+                  className="px-3 py-2 text-base text-gray-500 leading-relaxed line-clamp-4 cursor-pointer"
                   onClick={() => setExpanded(e => ({ ...e, [note.id]: true }))}
                 >
                   {bodyText || <span className="text-gray-300 italic">点击展开编辑...</span>}
