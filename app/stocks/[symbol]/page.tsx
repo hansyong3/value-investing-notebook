@@ -162,23 +162,38 @@ export default function StockPage() {
                 )}
                 <div className="text-xs font-mono text-gray-400 truncate">{stock.symbol}</div>
               </button>
-              <button
-                onClick={async () => {
-                  if (!confirm(`确定删除 ${stock.symbol}？相关笔记和持仓也会一并删除。`)) return;
-                  await fetch(`/api/stocks?id=${stock.id}`, { method: "DELETE" });
-                  await fetchStocks();
-                  if (stock.symbol === decodedSymbol && stocks.length > 1) {
-                    const next = stocks.find(s => s.id !== stock.id);
-                    if (next) router.push(`/stocks/${next.symbol}`);
-                    else router.push("/");
-                  } else if (stocks.length <= 1) {
-                    router.push("/");
-                  }
-                }}
-                className="opacity-0 group-hover:opacity-100 mr-2 text-gray-300 hover:text-red-400 transition-all text-xs px-1 py-0.5 rounded"
-              >
-                ✕
-              </button>
+              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 mr-1.5 transition-all">
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await fetch("/api/stocks", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ id: stock.id, notebook: !stock.notebook }),
+                    });
+                    await fetchStocks();
+                  }}
+                  className="text-gray-300 hover:text-purple-500 transition-colors text-xs"
+                  title={stock.notebook ? "转为标的" : "转为笔记本"}
+                >
+                  {stock.notebook ? "📈" : "📓"}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`确定删除 ${stock.symbol}？相关笔记和持仓也会一并删除。`)) return;
+                    await fetch(`/api/stocks?id=${stock.id}`, { method: "DELETE" });
+                    await fetchStocks();
+                    if (stock.symbol === decodedSymbol && stocks.length > 1) {
+                      const next = stocks.find(s => s.id !== stock.id);
+                      if (next) router.push(`/stocks/${next.symbol}`);
+                      else router.push("/");
+                    } else if (stocks.length <= 1) {
+                      router.push("/");
+                    }
+                  }}
+                  className="text-gray-300 hover:text-red-400 transition-colors text-xs px-0.5"
+                >✕</button>
+              </div>
             </div>
           ))}
         </div>

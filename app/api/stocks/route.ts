@@ -22,9 +22,12 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const body = await req.json();
-  // Rename: { id, name }
-  if (body.id && body.name !== undefined) {
-    const [stock] = await db.update(stocks).set({ name: body.name }).where(eq(stocks.id, body.id)).returning();
+  // Rename or toggle notebook: { id, name?, notebook? }
+  if (body.id && (body.name !== undefined || body.notebook !== undefined)) {
+    const updates: Record<string, unknown> = {};
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.notebook !== undefined) updates.notebook = body.notebook;
+    const [stock] = await db.update(stocks).set(updates).where(eq(stocks.id, body.id)).returning();
     return NextResponse.json(stock);
   }
   // Reorder: { orders: [{id, order}] }
