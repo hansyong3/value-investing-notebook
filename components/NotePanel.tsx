@@ -127,19 +127,29 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved }: P
                   : "border-gray-200 shadow-sm"
               }`}
             >
-              {/* Date row */}
-              <div className={`flex items-center justify-between px-3 py-2 border-b ${
-                isHighlighted(note) ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"
-              }`}>
-                <span className={`text-xs font-semibold ${isHighlighted(note) ? "text-blue-600" : "text-gray-500"}`}>
-                  {note.date}
-                </span>
-                <div className="flex items-center gap-2">
-                  {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
-                  <button onClick={() => { if (confirm("确定删除这条笔记？")) deleteNote(note.id); }}
-                    className="text-gray-400 hover:text-red-500 transition-colors text-xs border border-gray-200 hover:border-red-300 px-1.5 py-0.5 rounded">删除</button>
-                </div>
-              </div>
+              {/* Date + title row */}
+              {(() => {
+                const firstLine = (contents[note.id] ?? "").split("\n")[0].trim();
+                return (
+                  <div className={`px-3 py-2 border-b ${isHighlighted(note) ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs ${isHighlighted(note) ? "text-blue-500" : "text-gray-400"}`}>
+                        {note.date}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
+                        <button onClick={() => { if (confirm("确定删除这条笔记？")) deleteNote(note.id); }}
+                          className="text-gray-400 hover:text-red-500 transition-colors text-xs border border-gray-200 hover:border-red-300 px-1.5 py-0.5 rounded">删除</button>
+                      </div>
+                    </div>
+                    {firstLine && (
+                      <div className={`mt-1 text-sm font-bold ${isHighlighted(note) ? "text-blue-700" : "text-gray-800"}`}>
+                        {firstLine}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Textarea */}
               <textarea
