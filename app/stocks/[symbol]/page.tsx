@@ -123,10 +123,10 @@ export default function StockPage() {
               <span className="pl-2 text-gray-300 group-hover:text-gray-400 text-xs select-none">⠿</span>
               <button onClick={() => router.push(`/stocks/${stock.symbol}`)}
                 className="flex-1 text-left px-2 py-2.5 min-w-0">
-                <div className={`font-mono text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}>
-                  {stock.symbol}
+                <div className={`text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}>
+                  {stock.name}
                 </div>
-                <div className="text-xs text-gray-400 truncate">{stock.name}</div>
+                <div className="text-xs font-mono text-gray-400 truncate">{stock.symbol}</div>
               </button>
               <button
                 onClick={async () => {
