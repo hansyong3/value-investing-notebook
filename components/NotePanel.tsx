@@ -165,7 +165,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
 
       {/* Notes */}
       <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto py-4">
-        <div className={`${centered ? "max-w-4xl mx-auto px-8" : "px-3"} space-y-4`}>
+        <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-3"} space-y-4`}>
         {sorted.length === 0 && (
           <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
         )}
