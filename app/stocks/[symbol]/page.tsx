@@ -21,6 +21,7 @@ export default function StockPage() {
   const decodedSymbol = decodeURIComponent(symbol);
 
   const [bars, setBars] = useState<Bar[]>([]);
+  const [latestPrice, setLatestPrice] = useState<number | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [holdingsList, setHoldingsList] = useState<Holding[]>([]);
@@ -54,7 +55,10 @@ export default function StockPage() {
     try {
       const res = await fetch(`/api/price?symbol=${decodedSymbol}&interval=${interval}&range=${range}`);
       const data = await res.json();
-      if (Array.isArray(data)) setBars(data);
+      if (Array.isArray(data)) {
+        setBars(data);
+        if (data.length > 0) setLatestPrice(data[data.length - 1].close);
+      }
       else setChartError(true);
     } catch { setChartError(true); }
     finally { setChartLoading(false); }
@@ -249,7 +253,7 @@ export default function StockPage() {
 
             {/* Holdings */}
             <div className="flex-[9] min-h-0 overflow-hidden">
-              <HoldingsPanel symbol={decodedSymbol} holdings={holdingsList} onSaved={fetchHoldings} />
+              <HoldingsPanel symbol={decodedSymbol} holdings={holdingsList} onSaved={fetchHoldings} currentPrice={latestPrice} />
             </div>
           </div>
 

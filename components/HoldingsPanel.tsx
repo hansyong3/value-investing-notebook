@@ -6,7 +6,7 @@ type Holding = {
   price: string; currency: string; fee: string; note: string;
 };
 
-type Props = { symbol: string; holdings: Holding[]; onSaved: () => void };
+type Props = { symbol: string; holdings: Holding[]; onSaved: () => void; currentPrice?: number | null; };
 
 type EditForm = { type: string; date: string; shares: string; price: string; currency: string; fee: string; note: string };
 
@@ -57,7 +57,7 @@ function FormRow({ form, onChange, onSave, onCancel, saving }: {
   );
 }
 
-export default function HoldingsPanel({ symbol, holdings, onSaved }: Props) {
+export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [newForm, setNewForm] = useState<EditForm>(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -65,14 +65,22 @@ export default function HoldingsPanel({ symbol, holdings, onSaved }: Props) {
   const [editForm, setEditForm] = useState<EditForm>(EMPTY);
   const [editSaving, setEditSaving] = useState(false);
 
-  // Summary
+  // Summary: FIFO average cost calculation
   let totalShares = 0, totalCost = 0;
-  for (const h of holdings) {
+  for (const h of [...holdings].sort((a, b) => a.date.localeCompare(b.date))) {
     const s = parseFloat(h.shares), p = parseFloat(h.price), f = parseFloat(h.fee || "0");
-    if (h.type === "buy") { totalShares += s; totalCost += s * p + f; }
-    if (h.type === "sell") { totalShares -= s; totalCost -= s * (totalShares > 0 ? totalCost / (totalShares + s) : p); }
+    if (h.type === "buy") {
+      totalCost += s * p + f;
+      totalShares += s;
+    } else {
+      const avgPerShare = totalShares > 0 ? totalCost / totalShares : p;
+      totalCost -= s * avgPerShare;
+      totalShares -= s;
+    }
   }
   const avgCost = totalShares > 0 ? totalCost / totalShares : 0;
+  const pnl = currentPrice != null && totalShares > 0 ? (currentPrice - avgCost) * totalShares : null;
+  const pnlRate = currentPrice != null && avgCost > 0 ? (currentPrice - avgCost) / avgCost * 100 : null;
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -119,7 +127,18 @@ export default function HoldingsPanel({ symbol, holdings, onSaved }: Props) {
           {totalShares > 0 && (
             <>
               <span className="text-xs text-gray-500">持仓 <span className="font-mono text-gray-800">{totalShares.toLocaleString()}</span> 股</span>
-              <span className="text-xs text-gray-500">均价 <span className="font-mono text-gray-800">{avgCost.toFixed(3)}</span></span>
+              <span className="text-xs text-gray-500">持有平均成本 <span className="font-mono text-gray-800">{avgCost.toFixed(3)}</span></span>
+              {pnl != null && (
+                <span className={`text-xs font-medium ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  盈亏 <span className="font-mono">{pnl >= 0 ? "+" : ""}{pnl.toFixed(0)}</span>
+                  {pnlRate != null && (
+                    <span className="ml-1">({pnlRate >= 0 ? "+" : ""}{pnlRate.toFixed(2)}%)</span>
+                  )}
+                </span>
+              )}
+              {currentPrice != null && totalShares > 0 && (
+                <span className="text-xs text-gray-400">当前价 <span className="font-mono text-gray-600">{currentPrice.toFixed(3)}</span></span>
+              )}
             </>
           )}
         </div>
