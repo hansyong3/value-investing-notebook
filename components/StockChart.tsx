@@ -27,6 +27,8 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const notesRef = useRef<Note[]>(notes);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markersPluginRef = useRef<any>(null);
   const [tooltip, setTooltip] = useState<Tooltip>(null);
 
   // Keep notesRef in sync so crosshair handler always has latest notes
@@ -83,14 +85,10 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
     return () => { ro.disconnect(); chart.remove(); };
   }, []); // only init once
 
-  useEffect(() => {
-    if (!seriesRef.current || data.length === 0) return;
-    seriesRef.current.setData(data);
-    chartRef.current?.timeScale().fitContent();
-
-    // Markers on dates that have notes
-    const markers = notes
-      .filter((n) => data.some((b) => b.time === n.date))
+  // Helper to build marker list
+  function buildMarkers(noteList: Note[], barList: Bar[]) {
+    return noteList
+      .filter((n) => barList.some((b) => b.time === n.date))
       .map((n) => ({
         time: n.date,
         position: "belowBar" as const,
@@ -100,9 +98,27 @@ export default function StockChart({ data, notes, onCrosshairMove }: Props) {
         size: 0.6,
       }))
       .sort((a, b) => a.time.localeCompare(b.time));
+  }
 
-    createSeriesMarkers(seriesRef.current, markers);
-  }, [data, notes]);
+  useEffect(() => {
+    if (!seriesRef.current || data.length === 0) return;
+    seriesRef.current.setData(data);
+    chartRef.current?.timeScale().fitContent();
+
+    const markers = buildMarkers(notesRef.current, data);
+    if (markersPluginRef.current) {
+      markersPluginRef.current.setMarkers(markers);
+    } else {
+      markersPluginRef.current = createSeriesMarkers(seriesRef.current, markers);
+    }
+  }, [data]);
+
+  // Update markers when notes change without re-creating
+  useEffect(() => {
+    if (!markersPluginRef.current || data.length === 0) return;
+    const markers = buildMarkers(notes, data);
+    markersPluginRef.current.setMarkers(markers);
+  }, [notes]);
 
   const containerW = containerRef.current?.clientWidth ?? 600;
   const tooltipLeft = tooltip
