@@ -35,6 +35,7 @@ export default function StockPage() {
   const [range, setRange] = useState("2y");
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(false);
+  const [debugMsg, setDebugMsg] = useState("");
 
   const decodedSymbol = decodeURIComponent(symbol);
 
@@ -52,11 +53,14 @@ export default function StockPage() {
       const data = await res.json();
       if (Array.isArray(data)) {
         setBars(data);
+        setDebugMsg(`OK: ${data.length} bars`);
       } else {
         setChartError(true);
+        setDebugMsg(JSON.stringify(data));
       }
-    } catch {
+    } catch (e) {
       setChartError(true);
+      setDebugMsg(String(e));
     } finally {
       setChartLoading(false);
     }
@@ -131,6 +135,11 @@ export default function StockPage() {
           {chartLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80 z-10">
               <div className="text-gray-400 text-sm">加载行情数据...</div>
+            </div>
+          )}
+          {debugMsg && (
+            <div className="absolute top-2 left-2 z-20 bg-black/80 text-yellow-400 text-xs px-3 py-1.5 rounded max-w-xs break-all">
+              {debugMsg}
             </div>
           )}
           {chartError && !chartLoading && (
