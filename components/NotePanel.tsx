@@ -105,14 +105,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     onNotesSaved();
   }
 
-  async function handlePaste(id: number, e: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const items = Array.from(e.clipboardData.items);
-    const imageItem = items.find(item => item.type.startsWith("image/"));
-    if (!imageItem) return;
-    e.preventDefault();
-    const file = imageItem.getAsFile();
-    if (!file) return;
-    // Convert to base64 and insert inline
+  function insertImageFile(id: number, file: File) {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
@@ -122,6 +115,21 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       schedSave(id, titles[id] ?? "", newBody);
     };
     reader.readAsDataURL(file);
+  }
+
+  function handlePaste(id: number, e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = Array.from(e.clipboardData.items);
+    const imageItem = items.find(item => item.type.startsWith("image/"));
+    if (!imageItem) return;
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (file) insertImageFile(id, file);
+  }
+
+  function handleDrop(id: number, e: React.DragEvent<HTMLTextAreaElement>) {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+    files.forEach(f => insertImageFile(id, f));
   }
 
   async function addNewNote() {
@@ -234,6 +242,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 value={bodies[note.id] ?? ""}
                 onChange={(e) => handleBody(note.id, e.target.value)}
                 onPaste={(e) => handlePaste(note.id, e)}
+                onDrop={(e) => handleDrop(note.id, e)}
+                onDragOver={(e) => e.preventDefault()}
                 rows={isOpen
                   ? Math.max(COLLAPSED_ROWS, (bodies[note.id] ?? "").replace(/!\[.*?\]\(.*?\)\n?/g, "").split("\n").length + 2)
                   : COLLAPSED_ROWS}
