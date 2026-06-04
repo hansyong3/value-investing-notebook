@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -20,6 +20,11 @@ export default function StockPage() {
   const { symbol } = useParams<{ symbol: string }>();
   const router = useRouter();
   const decodedSymbol = decodeURIComponent(symbol);
+
+  // Resizable notes panel
+  const [notesWidth, setNotesWidth] = useState(50); // percent
+  const isDragging = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [bars, setBars] = useState<Bar[]>([]);
   const [latestPrice, setLatestPrice] = useState<number | null>(null);
@@ -298,7 +303,7 @@ export default function StockPage() {
           <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} centered />
         </div>
       ) : (
-        <>
+        <div ref={containerRef} className="flex flex-1 overflow-hidden min-h-0">
           {/* Center: chart + holdings */}
           <div className="flex flex-col flex-1 min-w-0 border-r border-gray-200">
             {/* Toolbar */}
@@ -344,11 +349,33 @@ export default function StockPage() {
             </div>
           </div>
 
-          {/* Right: notes - ~45% of screen */}
-          <div className="w-1/2 flex-shrink-0 min-h-0 overflow-hidden flex flex-col bg-white">
+          {/* Drag handle */}
+          <div
+            className="w-1 flex-shrink-0 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors group"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              isDragging.current = true;
+              const onMove = (ev: MouseEvent) => {
+                if (!isDragging.current || !containerRef.current) return;
+                const rect = containerRef.current.getBoundingClientRect();
+                const pct = Math.min(75, Math.max(20, ((rect.right - ev.clientX) / rect.width) * 100));
+                setNotesWidth(pct);
+              };
+              const onUp = () => {
+                isDragging.current = false;
+                window.removeEventListener("mousemove", onMove);
+                window.removeEventListener("mouseup", onUp);
+              };
+              window.addEventListener("mousemove", onMove);
+              window.addEventListener("mouseup", onUp);
+            }}
+          />
+
+          {/* Right: notes */}
+          <div className="flex-shrink-0 min-h-0 overflow-hidden flex flex-col bg-white" style={{ width: `${notesWidth}%` }}>
             <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
           </div>
-        </>
+        </div>
       )}
     </div>
   );
