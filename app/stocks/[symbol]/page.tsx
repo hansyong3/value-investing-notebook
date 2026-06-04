@@ -162,7 +162,7 @@ export default function StockPage() {
               <button onClick={fetchPrice} className="text-xs text-blue-500 border border-blue-300 px-3 py-1 rounded hover:bg-blue-50 transition-colors">重试</button>
             </div>
           )}
-          <StockChart data={bars} onCrosshairMove={setActiveDate} />
+          <StockChart data={bars} notes={notes} onCrosshairMove={setActiveDate} />
         </div>
 
         {/* Holdings - 45% height */}
