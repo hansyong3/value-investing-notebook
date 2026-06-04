@@ -345,7 +345,7 @@ export default function StockPage() {
           </div>
 
           {/* Right: notes - ~45% of screen */}
-          <div className="w-[45%] flex-shrink-0 min-h-0 overflow-hidden flex flex-col bg-white">
+          <div className="w-[48%] flex-shrink-0 min-h-0 overflow-hidden flex flex-col bg-white">
             <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
           </div>
         </>
