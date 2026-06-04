@@ -21,14 +21,22 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  // Accepts { orders: [{id, order}] }
-  const { orders } = await req.json();
-  await Promise.all(
-    orders.map(({ id, order }: { id: number; order: number }) =>
-      db.update(stocks).set({ order }).where(eq(stocks.id, id))
-    )
-  );
-  return NextResponse.json({ ok: true });
+  const body = await req.json();
+  // Rename: { id, name }
+  if (body.id && body.name !== undefined) {
+    const [stock] = await db.update(stocks).set({ name: body.name }).where(eq(stocks.id, body.id)).returning();
+    return NextResponse.json(stock);
+  }
+  // Reorder: { orders: [{id, order}] }
+  if (body.orders) {
+    await Promise.all(
+      body.orders.map(({ id, order }: { id: number; order: number }) =>
+        db.update(stocks).set({ order }).where(eq(stocks.id, id))
+      )
+    );
+    return NextResponse.json({ ok: true });
+  }
+  return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 }
 
 export async function DELETE(req: Request) {

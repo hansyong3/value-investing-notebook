@@ -35,6 +35,10 @@ export default function StockPage() {
   const [newSymbol, setNewSymbol] = useState("");
   const [newName, setNewName] = useState("");
 
+  // Rename stock
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+
   // Drag-and-drop state
   const [dragId, setDragId] = useState<number | null>(null);
 
@@ -123,9 +127,35 @@ export default function StockPage() {
               <span className="pl-2 text-gray-300 group-hover:text-gray-400 text-xs select-none">⠿</span>
               <button onClick={() => router.push(`/stocks/${stock.symbol}`)}
                 className="flex-1 text-left px-2 py-2.5 min-w-0">
-                <div className={`text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}>
-                  {stock.name}
-                </div>
+                {editingId === stock.id ? (
+                  <input
+                    autoFocus
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onBlur={async () => {
+                      if (editingName.trim() && editingName !== stock.name) {
+                        await fetch("/api/stocks", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id: stock.id, name: editingName.trim() }),
+                        });
+                        fetchStocks();
+                      }
+                      setEditingId(null);
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingId(null); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full text-sm font-semibold text-gray-800 bg-white border border-blue-400 rounded px-1 focus:outline-none"
+                  />
+                ) : (
+                  <div
+                    className={`text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}
+                    onDoubleClick={(e) => { e.stopPropagation(); setEditingId(stock.id); setEditingName(stock.name); }}
+                    title="双击编辑名称"
+                  >
+                    {stock.name}
+                  </div>
+                )}
                 <div className="text-xs font-mono text-gray-400 truncate">{stock.symbol}</div>
               </button>
               <button
