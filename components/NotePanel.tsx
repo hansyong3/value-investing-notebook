@@ -162,7 +162,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     <div className="flex flex-col flex-1 min-h-0 bg-gray-50">
       {/* Header */}
       <div className="border-b border-gray-200 bg-white flex-shrink-0">
-        <div className={`${centered ? "max-w-6xl mx-auto px-8" : "pl-1 pr-4"} py-2 flex items-center justify-between`}>
+        <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-4"} py-2 flex items-center justify-between`}>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length})</span></span>
           <button onClick={collapseAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部收起</button>
@@ -180,7 +180,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
 
       {/* Notes */}
       <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto py-4">
-        <div className={`${centered ? "max-w-6xl mx-auto px-8" : "pl-1 pr-4"} space-y-4`}>
+        <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-4"} space-y-4`}>
         {sorted.length === 0 && (
           <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
         )}
