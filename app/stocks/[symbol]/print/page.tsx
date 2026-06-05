@@ -11,20 +11,27 @@ function parseContent(content: string) {
   return { title: content.slice(0, idx), body: content.slice(idx + 1) };
 }
 
-// Clean up Tiptap HTML for print: remove empty paragraphs
-function cleanHtml(html: string) {
-  return html
-    .replace(/<p><\/p>/g, "")
-    .replace(/<p>\s*<\/p>/g, "")
-    .trim();
-}
+const s = {
+  page: { fontFamily: '"PingFang SC","Microsoft YaHei",Arial,sans-serif', fontSize: 14, color: "#111", background: "#fff", minHeight: "100vh", padding: "40px 60px", maxWidth: 800, margin: "0 auto" } as React.CSSProperties,
+  toolbar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, paddingBottom: 16, borderBottom: "1px solid #e5e7eb" } as React.CSSProperties,
+  printBtn: { background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 14, cursor: "pointer", fontFamily: "inherit" } as React.CSSProperties,
+  cover: { marginBottom: 40, paddingBottom: 24, borderBottom: "2px solid #111" } as React.CSSProperties,
+  label: { fontSize: 11, color: "#9ca3af", letterSpacing: 2, textTransform: "uppercase" as const, marginBottom: 6 },
+  symbol: { fontSize: 32, fontWeight: 900, lineHeight: 1.1, margin: "0 0 4px 0" } as React.CSSProperties,
+  name: { fontSize: 16, color: "#6b7280", margin: "4px 0" } as React.CSSProperties,
+  meta: { fontSize: 11, color: "#aaa", marginTop: 10 } as React.CSSProperties,
+  note: { marginBottom: 36, paddingBottom: 28, borderBottom: "1px solid #f3f4f6" } as React.CSSProperties,
+  date: { fontSize: 11, color: "#aaa", fontFamily: "monospace", marginBottom: 6 } as React.CSSProperties,
+  title: { fontSize: 17, fontWeight: 700, color: "#111", marginBottom: 8, lineHeight: 1.4 } as React.CSSProperties,
+  body: { fontSize: 14, color: "#333", lineHeight: 1.8 } as React.CSSProperties,
+};
 
 export default function PrintPage() {
   const { symbol } = useParams<{ symbol: string }>();
   const decodedSymbol = decodeURIComponent(symbol);
   const [notes, setNotes] = useState<Note[]>([]);
   const [stockName, setStockName] = useState("");
-  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
@@ -41,94 +48,65 @@ export default function PrintPage() {
           return b.id - a.id;
         }));
       }
-      const stock = Array.isArray(stocksData) && stocksData.find((s: {symbol:string;name:string}) => s.symbol === decodedSymbol);
-      if (stock) setStockName(stock.name);
-      setReady(true);
+      const stock = Array.isArray(stocksData) && stocksData.find((s: {symbol:string}) => s.symbol === decodedSymbol);
+      if (stock) setStockName((stock as {name:string}).name);
+      setLoading(false);
     }
     load();
   }, [decodedSymbol]);
 
-  useEffect(() => {
-    if (ready) setTimeout(() => window.print(), 800);
-  }, [ready]);
+  if (loading) return <div style={{ display:"flex", justifyContent:"center", alignItems:"center", height:"100vh", color:"#aaa", fontFamily:"Arial,sans-serif" }}>加载中...</div>;
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: `
-        @charset "UTF-8";
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-          font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", Arial, sans-serif;
-          font-size: 11pt;
-          color: #111;
-          background: white;
-        }
-        @page {
-          size: A4 portrait;
-          margin: 22mm 20mm;
-        }
-        @media print {
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
-        .cover { margin-bottom: 14mm; padding-bottom: 8mm; border-bottom: 2pt solid #111; }
-        .cover-label { font-size: 8pt; color: #888; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
-        .cover-symbol { font-size: 24pt; font-weight: 900; line-height: 1.1; }
-        .cover-name { font-size: 13pt; color: #555; margin-top: 4px; }
-        .cover-meta { font-size: 8pt; color: #aaa; margin-top: 10px; }
-        .note { margin-bottom: 10mm; padding-bottom: 8mm; border-bottom: 0.5pt solid #e5e7eb; page-break-inside: avoid; }
-        .note-date { font-size: 8pt; color: #aaa; font-family: monospace; margin-bottom: 5px; }
-        .note-title { font-size: 13pt; font-weight: 700; color: #111; margin-bottom: 6px; line-height: 1.4; }
-        .note-body { font-size: 10.5pt; color: #333; line-height: 1.75; }
-        .note-body p { margin-bottom: 6px; }
-        .note-body strong { font-weight: 700; }
-        .note-body em { font-style: italic; }
-        .note-body img { max-width: 100%; border-radius: 4px; margin: 8px 0; }
-        .star { color: #f59e0b; margin-right: 4px; }
-      ` }} />
+    <div style={s.page}>
+      {/* Toolbar - hidden when printing */}
+      <div style={s.toolbar} className="no-print">
+        <span style={{ fontSize: 13, color: "#6b7280" }}>预览模式 — 确认内容后点击打印</span>
+        <button style={s.printBtn} onClick={() => window.print()}>🖨️ 打印 / 保存 PDF</button>
+      </div>
 
-      {!ready ? (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", color: "#aaa" }}>
-          加载中...
-        </div>
-      ) : (
-        <div style={{ maxWidth: "170mm", margin: "0 auto" }}>
-          <div className="cover">
-            <div className="cover-label">价值投资笔记</div>
-            <div className="cover-symbol">{decodedSymbol}</div>
-            {stockName && <div className="cover-name">{stockName}</div>}
-            <div className="cover-meta">
-              导出日期：{new Date().toLocaleDateString("zh-CN")} · 共 {notes.length} 条笔记
+      {/* Cover */}
+      <div style={s.cover}>
+        <div style={s.label}>价值投资笔记</div>
+        <div style={s.symbol}>{decodedSymbol}</div>
+        {stockName && <div style={s.name}>{stockName}</div>}
+        <div style={s.meta}>导出日期：{new Date().toLocaleDateString("zh-CN")} · 共 {notes.length} 条笔记</div>
+      </div>
+
+      {/* Notes */}
+      {notes.map((note) => {
+        const { title, body } = parseContent(note.content);
+        return (
+          <div key={note.id} style={s.note}>
+            <div style={s.date}>
+              {note.starred && <span style={{ color: "#f59e0b", marginRight: 4 }}>★</span>}
+              {note.date}
             </div>
-          </div>
-
-          {notes.map((note) => {
-            const { title, body } = parseContent(note.content);
-            const cleanBody = cleanHtml(body);
-            return (
-              <div key={note.id} className="note">
-                <div className="note-date">
-                  {note.starred && <span className="star">★</span>}
-                  {note.date}
-                </div>
-                {title && <div className="note-title">{title}</div>}
-                {cleanBody && (
-                  <div
-                    className="note-body"
-                    dangerouslySetInnerHTML={{ __html: cleanBody }}
-                  />
-                )}
-                {note.images.length > 0 && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "10px" }}>
-                    {note.images.map((img) => (
-                      <img key={img.id} src={img.url} alt="" style={{ width: "100%", borderRadius: "4px" }} />
-                    ))}
-                  </div>
-                )}
+            {title && <div style={s.title}>{title}</div>}
+            {body && (
+              <div
+                style={s.body}
+                dangerouslySetInnerHTML={{ __html: body.replace(/<p><\/p>/g, "").replace(/<p>\s*<\/p>/g, "") }}
+              />
+            )}
+            {note.images.length > 0 && (
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:12 }}>
+                {note.images.map((img) => (
+                  <img key={img.id} src={img.url} alt="" style={{ width:"100%", borderRadius:4 }} />
+                ))}
               </div>
-            );
-          })}
-        </div>
-      )}
-    </>
+            )}
+          </div>
+        );
+      })}
+
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          @page { size: A4 portrait; margin: 20mm 18mm; }
+          body { font-size: 11pt; }
+        }
+      `}</style>
+    </div>
   );
 }
