@@ -61,6 +61,12 @@ export default function NoteEditor({ content, onChange, onImageFile }: Props) {
   if (!editor) return null;
 
   const isBold = editor.isActive("bold");
+  const isBulletList = editor.isActive("bulletList");
+  const isOrderedList = editor.isActive("orderedList");
+
+  function btnClass(active: boolean) {
+    return `text-sm px-1.5 py-0.5 rounded transition-colors ${active ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700"}`;
+  }
 
   return (
     <div
@@ -72,12 +78,22 @@ export default function NoteEditor({ content, onChange, onImageFile }: Props) {
       <div className="flex items-center gap-2 px-5 py-1 border-b border-gray-100">
         <button type="button"
           onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}
-          className={`text-sm font-bold px-1.5 py-0.5 rounded transition-colors ${isBold ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700"}`}
+          className={`${btnClass(isBold)} font-bold`}
           title="加粗">B</button>
         <button type="button"
           onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setColor("#dc2626").run(); }}
           className="text-sm font-medium px-1.5 py-0.5 rounded text-red-500 hover:bg-red-50 transition-colors"
           title="红色">A</button>
+        <div className="w-px h-4 bg-gray-200" />
+        <button type="button"
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}
+          className={btnClass(isBulletList)}
+          title="无序列表（Tab 缩进，Shift+Tab 反缩进）">• 列表</button>
+        <button type="button"
+          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleOrderedList().run(); }}
+          className={btnClass(isOrderedList)}
+          title="有序列表">1. 列表</button>
+        <div className="w-px h-4 bg-gray-200" />
         <button type="button"
           onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().unsetAllMarks().run(); }}
           className="text-xs text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100 transition-colors"
