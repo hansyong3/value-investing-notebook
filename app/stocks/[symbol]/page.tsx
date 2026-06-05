@@ -23,8 +23,9 @@ function exportNotes(symbol: string, notes: Note[], stocks: Stock[]) {
 
   const notesHtml = sorted.map(note => {
     const idx = note.content.indexOf("\n");
-    const title = idx === -1 ? note.content : note.content.slice(0, idx);
-    const body = idx === -1 ? "" : note.content.slice(idx + 1).replace(/<p><\/p>/g, "").replace(/<p>\s*<\/p>/g, "");
+    const title = idx === -1 ? "" : note.content.slice(0, idx).trim();
+    const rawBody = idx === -1 ? note.content : note.content.slice(idx + 1);
+    const body = rawBody.replace(/<p><\/p>/g, "").replace(/<p>\s*<\/p>/g, "").trim();
     return `
       <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #f0f0f0;page-break-inside:avoid">
         <div style="font-size:11px;color:#aaa;margin-bottom:6px;font-family:monospace">
@@ -63,8 +64,10 @@ function exportNotes(symbol: string, notes: Note[], stocks: Stock[]) {
 </body>
 </html>`;
 
-  const win = window.open("", "_blank");
-  if (win) { win.document.write(html); win.document.close(); }
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 const INTERVALS = [{ label: "日K", value: "1d" }, { label: "周K", value: "1wk" }, { label: "月K", value: "1mo" }];
