@@ -199,7 +199,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               }`}
             >
               {/* Header row */}
-              <div className={`flex items-center justify-between px-3 py-1.5 border-b ${hl ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
+              <div className={`flex items-center justify-between px-5 py-1.5 border-b ${hl ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => toggleStar(note.id, note.starred)}
                     className={`text-base leading-none transition-colors ${note.starred ? "text-yellow-400" : "text-gray-300 hover:text-yellow-400"}`}>★</button>
@@ -224,7 +224,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 value={titles[note.id] ?? ""}
                 onChange={(e) => handleTitle(note.id, e.target.value)}
                 placeholder="标题"
-                className="w-full px-3 pt-2.5 pb-1 text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white border-b border-gray-100"
+                className="w-full px-5 pt-2.5 pb-1 text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white border-b border-gray-100"
               />
 
               {/* Body: collapsed = 4-line text preview, expanded = rich editor */}
@@ -236,7 +236,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 />
               ) : (
                 <div
-                  className="px-3 py-2 text-base text-gray-500 leading-relaxed line-clamp-4 cursor-pointer"
+                  className="px-5 py-2 text-base text-gray-500 leading-relaxed line-clamp-4 cursor-pointer"
                   onClick={() => setExpanded(e => ({ ...e, [note.id]: true }))}
                 >
                   {bodyText || <span className="text-gray-300 italic">点击展开编辑...</span>}
@@ -244,7 +244,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               )}
 
               {/* Footer */}
-              <div className="flex justify-end px-3 py-1.5 border-t border-gray-50">
+              <div className="flex justify-end px-5 py-1.5 border-t border-gray-50">
                 <button onClick={() => setExpanded(e => ({ ...e, [note.id]: !e[note.id] }))}
                   className="text-xs text-gray-400 hover:text-blue-500 transition-colors">
                   {isOpen ? "收起 ▲" : "展开 ▼"}

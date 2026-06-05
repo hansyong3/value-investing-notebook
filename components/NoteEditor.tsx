@@ -26,7 +26,7 @@ export default function NoteEditor({ content, onChange, onImageFile }: Props) {
     content,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
-      attributes: { class: "tiptap-body focus:outline-none px-3 py-2 min-h-[80px] text-base text-gray-700 leading-relaxed" },
+      attributes: { class: "tiptap-body focus:outline-none px-5 py-2 min-h-[80px] text-base text-gray-700 leading-relaxed" },
     },
   });
 
@@ -69,7 +69,7 @@ export default function NoteEditor({ content, onChange, onImageFile }: Props) {
       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
     >
       {/* Mini toolbar */}
-      <div className="flex items-center gap-2 px-3 py-1 border-b border-gray-100">
+      <div className="flex items-center gap-2 px-5 py-1 border-b border-gray-100">
         <button type="button"
           onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}
           className={`text-sm font-bold px-1.5 py-0.5 rounded transition-colors ${isBold ? "bg-gray-200 text-gray-900" : "text-gray-400 hover:text-gray-700"}`}
