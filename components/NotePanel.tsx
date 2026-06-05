@@ -47,7 +47,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const [tagPopover, setTagPopover] = useState<number | null>(null);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
-  const [filterTag, setFilterTag] = useState<number | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const fetchTags = useCallback(async () => {
@@ -230,7 +229,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       for (const key in next) next[key] = next[key].filter(id => id !== tagId);
       return next;
     });
-    if (filterTag === tagId) setFilterTag(null);
   }
 
   const sorted = [...notes].sort((a, b) => {
@@ -238,10 +236,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     if (a.date !== b.date) return b.date.localeCompare(a.date);
     return b.id - a.id;
   });
-
-  const filtered = filterTag
-    ? sorted.filter(n => (noteTags[n.id] ?? []).includes(filterTag))
-    : sorted;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-gray-50">
@@ -267,38 +261,16 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
           </div>
         </div>
 
-        {/* Tag filter bar — only shows if there are tags */}
-        {allTags.length > 0 && (
-          <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-4"} pb-2 flex items-center gap-1.5 flex-wrap`}>
-            <span className="text-xs text-gray-400">筛选：</span>
-            <button
-              onClick={() => setFilterTag(null)}
-              className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${filterTag === null ? "bg-gray-800 text-white border-gray-800" : "border-gray-200 text-gray-400 hover:border-gray-400"}`}>
-              全部
-            </button>
-            {allTags.map(tag => (
-              <button key={tag.id}
-                onClick={() => setFilterTag(filterTag === tag.id ? null : tag.id)}
-                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${filterTag === tag.id ? "text-white border-transparent" : "text-gray-600 border-gray-200 hover:border-gray-400"}`}
-                style={filterTag === tag.id ? { background: tag.color, borderColor: tag.color } : {}}>
-                <span style={{ color: filterTag === tag.id ? undefined : tag.color }} className="mr-1">●</span>
-                {tag.name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Notes */}
       <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto py-4">
         <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-4"} space-y-4`}>
-          {filtered.length === 0 && (
-            <p className="text-gray-400 text-sm text-center mt-10">
-              {filterTag ? "没有符合此标签的笔记" : "还没有笔记，点击「添加笔记」开始记录"}
-            </p>
+          {sorted.length === 0 && (
+            <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
           )}
 
-          {filtered.map((note) => {
+          {sorted.map((note) => {
             const isOpen = !!expanded[note.id];
             const hl = isHighlighted(note);
             const bodyText = stripHtml(bodies[note.id] ?? note.content);
