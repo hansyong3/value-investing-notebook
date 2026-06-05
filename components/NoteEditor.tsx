@@ -88,11 +88,23 @@ export default function NoteEditor({ content, onChange, onImageFile }: Props) {
         <button type="button"
           onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}
           className={btnClass(isBulletList)}
-          title="无序列表（Tab 缩进，Shift+Tab 反缩进）">• 列表</button>
+          title="无序列表（Tab 缩进，Shift+Tab 反缩进）">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/>
+            <circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
         <button type="button"
           onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleOrderedList().run(); }}
           className={btnClass(isOrderedList)}
-          title="有序列表">1. 列表</button>
+          title="有序列表">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="10" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="10" y1="18" x2="20" y2="18"/>
+            <text x="2" y="8" fontSize="7" fontWeight="bold" stroke="none" fill="currentColor">1</text>
+            <text x="2" y="14" fontSize="7" fontWeight="bold" stroke="none" fill="currentColor">2</text>
+            <text x="2" y="20" fontSize="7" fontWeight="bold" stroke="none" fill="currentColor">3</text>
+          </svg>
+        </button>
         <div className="w-px h-4 bg-gray-200" />
         <button type="button"
           onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().unsetAllMarks().run(); }}
