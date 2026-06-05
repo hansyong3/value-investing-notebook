@@ -30,50 +30,59 @@ async function exportNotes(symbol: string, stockName: string) {
     const body = nl >= 0 ? note.content.slice(nl + 1) : note.content;
     const cleanBody = body.replace(/<p>\s*<\/p>/g, "").trim();
     return `
-      <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #f0f0f0;page-break-inside:avoid">
-        <div style="font-size:11px;color:#aaa;margin-bottom:6px;font-family:monospace">
-          ${note.starred ? '<span style="color:#f59e0b">★</span> ' : ''}${note.date}
+      <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #f0f0f0;">
+        <div style="font-size:11px;color:#aaa;margin-bottom:6px;font-family:monospace;">
+          ${note.starred ? '<span style="color:#f59e0b;">★</span> ' : ''}${note.date}
         </div>
-        ${title ? `<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:8px;line-height:1.4">${title}</div>` : ""}
-        ${cleanBody ? `<div style="font-size:14px;color:#333;line-height:1.75">${cleanBody}</div>` : ""}
+        ${title ? `<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:8px;line-height:1.4;">${title}</div>` : ""}
+        ${cleanBody ? `<div style="font-size:14px;color:#333;line-height:1.75;">${cleanBody}</div>` : ""}
       </div>`;
   }).join("");
 
-  const html = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <title>${symbol} - 投资笔记</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif;background:#fff;color:#111;padding:40px 60px;max-width:800px;margin:0 auto}
-    @page{size:A4 portrait;margin:20mm 18mm}
-    @media print{.toolbar{display:none!important}body{padding:0}*{color:#000!important;-webkit-print-color-adjust:exact}}
-    p{margin-bottom:6px;line-height:1.75}
-    strong{font-weight:700}em{font-style:italic}
-    img{max-width:100%;border-radius:4px;margin:8px 0}
-  </style>
-</head>
-<body>
-  <div class="toolbar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;padding-bottom:16px;border-bottom:1px solid #e5e7eb">
-    <span style="font-size:13px;color:#888">共 ${sorted.length} 条笔记 — 确认内容后打印</span>
-    <button onclick="window.print()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:14px;cursor:pointer">🖨️ 打印 / 保存 PDF</button>
-  </div>
-  <div style="margin-bottom:36px;padding-bottom:24px;border-bottom:2px solid #111">
-    <div style="font-size:10px;color:#aaa;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">价值投资笔记</div>
-    <div style="font-size:32px;font-weight:900;line-height:1.1">${symbol}</div>
-    ${stockName ? `<div style="font-size:16px;color:#666;margin-top:4px">${stockName}</div>` : ""}
-    <div style="font-size:10px;color:#aaa;margin-top:10px">导出日期：${new Date().toLocaleDateString("zh-CN")} · 共 ${sorted.length} 条</div>
-  </div>
-  ${notesHtml}
-</body>
-</html>`;
+  const container = document.createElement("div");
+  container.style.cssText = "position:absolute;left:-9999px;top:0;width:794px;background:#fff;padding:40px 60px;font-family:'PingFang SC','Microsoft YaHei',Arial,sans-serif;color:#111;box-sizing:border-box;";
+  container.innerHTML = `
+    <div style="margin-bottom:36px;padding-bottom:24px;border-bottom:2px solid #111;">
+      <div style="font-size:10px;color:#aaa;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">价值投资笔记</div>
+      <div style="font-size:32px;font-weight:900;line-height:1.1;">${symbol}</div>
+      ${stockName ? `<div style="font-size:16px;color:#666;margin-top:4px;">${stockName}</div>` : ""}
+      <div style="font-size:10px;color:#aaa;margin-top:10px;">导出日期：${new Date().toLocaleDateString("zh-CN")} · 共 ${sorted.length} 条</div>
+    </div>
+    ${notesHtml}
+  `;
+  document.body.appendChild(container);
 
-  const win = window.open("", "_blank");
-  if (!win) { alert("请允许弹出窗口后重试"); return; }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  try {
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false });
+    const imgData = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let yPosition = 0;
+    pdf.addImage(imgData, "PNG", 0, yPosition, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      yPosition -= pageHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, yPosition, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save(`${symbol}-投资笔记.pdf`);
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 const INTERVALS = [{ label: "日K", value: "1d" }, { label: "周K", value: "1wk" }, { label: "月K", value: "1mo" }];
