@@ -381,31 +381,25 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                   </div>
                 </div>
 
-                {/* Title */}
-                <input type="text"
-                  value={titles[note.id] ?? ""}
-                  onChange={(e) => handleTitle(note.id, e.target.value)}
-                  placeholder="标题"
-                  className="w-full px-5 pt-2.5 pb-1 text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white"
-                />
-
-                {/* Tag chips below title */}
-                {noteTagObjs.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap px-5 pb-2">
-                    {noteTagObjs.map(tag => (
-                      <span key={tag.id}
-                        className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full text-white"
-                        style={{ background: tag.color }}>
-                        {tag.name}
-                        <button
-                          onMouseDown={(e) => { e.stopPropagation(); toggleNoteTag(note.id, tag.id); }}
-                          className="ml-0.5 opacity-70 hover:opacity-100 leading-none">×</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="border-b border-gray-100" />
+                {/* Title + tags inline */}
+                <div className="flex items-center gap-2 px-5 pt-2.5 pb-1 border-b border-gray-100">
+                  <input type="text"
+                    value={titles[note.id] ?? ""}
+                    onChange={(e) => handleTitle(note.id, e.target.value)}
+                    placeholder="标题"
+                    className="flex-1 min-w-0 text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white"
+                  />
+                  {noteTagObjs.map(tag => (
+                    <span key={tag.id}
+                      className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full text-white flex-shrink-0"
+                      style={{ background: tag.color }}>
+                      {tag.name}
+                      <button
+                        onMouseDown={(e) => { e.stopPropagation(); toggleNoteTag(note.id, tag.id); }}
+                        className="ml-0.5 opacity-70 hover:opacity-100 leading-none">×</button>
+                    </span>
+                  ))}
+                </div>
 
                 {/* Body */}
                 {isOpen ? (
