@@ -76,7 +76,7 @@ export default function StockPage() {
   const decodedSymbol = decodeURIComponent(symbol);
 
   // Resizable notes panel
-  const [notesWidth, setNotesWidth] = useState(58); // percent
+  const [notesWidth, setNotesWidth] = useState(50); // percent
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
