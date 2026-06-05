@@ -313,7 +313,6 @@ export default function StockPage() {
                         {stock.name}
                       </div>
                     )}
-                    <div className="text-xs text-purple-300">📓</div>
                   </button>
                   <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 mr-1.5 transition-all">
                     <button onClick={async (e) => { e.stopPropagation(); await fetch("/api/stocks", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: stock.id, notebook: false }) }); fetchStocks(); }}
