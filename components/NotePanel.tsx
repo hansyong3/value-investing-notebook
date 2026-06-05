@@ -286,7 +286,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               >
                 {/* Header row */}
                 <div className={`flex items-center justify-between px-5 py-1.5 border-b ${hl ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1.5">
                     <button onClick={() => toggleStar(note.id, note.starred)}
                       className={`text-base leading-none transition-colors ${note.starred ? "text-yellow-400" : "text-gray-300 hover:text-yellow-400"}`}>★</button>
                     <input type="date" defaultValue={note.date}
@@ -297,17 +297,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                       }}
                       className={`text-xs border-none bg-transparent focus:outline-none cursor-pointer ${hl ? "text-blue-500" : "text-gray-400"}`}
                     />
-                    {/* Tag chips */}
-                    {noteTagObjs.map(tag => (
-                      <span key={tag.id}
-                        className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full text-white"
-                        style={{ background: tag.color }}>
-                        {tag.name}
-                        <button
-                          onMouseDown={(e) => { e.stopPropagation(); toggleNoteTag(note.id, tag.id); }}
-                          className="ml-0.5 opacity-70 hover:opacity-100 leading-none">×</button>
-                      </span>
-                    ))}
                   </div>
                   <div className="flex items-center gap-1.5 relative">
                     {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
@@ -397,8 +386,26 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                   value={titles[note.id] ?? ""}
                   onChange={(e) => handleTitle(note.id, e.target.value)}
                   placeholder="标题"
-                  className="w-full px-5 pt-2.5 pb-1 text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white border-b border-gray-100"
+                  className="w-full px-5 pt-2.5 pb-1 text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white"
                 />
+
+                {/* Tag chips below title */}
+                {noteTagObjs.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap px-5 pb-2">
+                    {noteTagObjs.map(tag => (
+                      <span key={tag.id}
+                        className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full text-white"
+                        style={{ background: tag.color }}>
+                        {tag.name}
+                        <button
+                          onMouseDown={(e) => { e.stopPropagation(); toggleNoteTag(note.id, tag.id); }}
+                          className="ml-0.5 opacity-70 hover:opacity-100 leading-none">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="border-b border-gray-100" />
 
                 {/* Body */}
                 {isOpen ? (
