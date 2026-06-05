@@ -1,11 +1,35 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { notes, noteImages, stocks } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { notes, noteImages, stocks, noteTags } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const symbol = searchParams.get("symbol");
+  const tagId = searchParams.get("tagId");
+
+  // Global tag view: return all notes with this tag, joined with stock info
+  if (tagId) {
+    const tagged = await db.select({ noteId: noteTags.noteId }).from(noteTags).where(eq(noteTags.tagId, Number(tagId)));
+    if (tagged.length === 0) return NextResponse.json([]);
+    const noteIds = tagged.map(r => r.noteId);
+
+    const rows = await db
+      .select({
+        id: notes.id, date: notes.date, content: notes.content,
+        starred: notes.starred, createdAt: notes.createdAt, updatedAt: notes.updatedAt,
+        stockId: notes.stockId,
+        stockSymbol: stocks.symbol, stockName: stocks.name, notebook: stocks.notebook,
+      })
+      .from(notes)
+      .innerJoin(stocks, eq(stocks.id, notes.stockId))
+      .where(inArray(notes.id, noteIds))
+      .orderBy(notes.date);
+
+    const allImages = await db.select().from(noteImages).where(inArray(noteImages.noteId, noteIds));
+    return NextResponse.json(rows.map(r => ({ ...r, images: allImages.filter(img => img.noteId === r.id) })));
+  }
+
   if (!symbol) return NextResponse.json({ error: "Missing symbol" }, { status: 400 });
 
   const [stock] = await db.select().from(stocks).where(eq(stocks.symbol, symbol.toUpperCase()));

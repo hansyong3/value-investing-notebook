@@ -362,6 +362,10 @@ export default function StockPage() {
             className="w-full text-xs text-gray-400 hover:text-purple-600 py-1.5 flex items-center justify-center gap-1 transition-colors">
             <span>+</span> 添加笔记本
           </button>
+          <Link href="/tags"
+            className="w-full text-xs text-gray-400 hover:text-purple-600 py-1.5 flex items-center justify-center gap-1 transition-colors">
+            🏷️ 标签视图
+          </Link>
           <Link href="/backup"
             className="w-full text-xs text-gray-300 hover:text-gray-500 py-1.5 flex items-center justify-center gap-1 transition-colors border-t border-gray-100 mt-1 pt-2">
             🔒 备份 / 恢复数据
