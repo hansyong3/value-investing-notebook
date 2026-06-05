@@ -14,17 +14,9 @@ type Stock = { id: number; symbol: string; name: string; notebook: boolean };
 type Holding = { id: number; type: string; date: string; shares: string; price: string; currency: string; fee: string; note: string };
 
 async function exportNotes(symbol: string, stockName: string) {
-  // Fetch fresh data directly from API
   const res = await fetch(`/api/notes?symbol=${symbol}`);
   const notes: Note[] = await res.json();
-  // Debug: show first note content
-  if (notes.length > 0) {
-    const first = notes[0];
-    alert(`共${notes.length}条笔记\n第一条内容前50字：\n${first.content.slice(0, 50)}`);
-  } else {
-    alert("没有抓到笔记，notes为空");
-    return;
-  }
+  if (!notes.length) { alert("没有笔记可导出"); return; }
 
   const sorted = [...notes].sort((a, b) => {
     if (a.starred !== b.starred) return a.starred ? -1 : 1;
@@ -56,7 +48,7 @@ async function exportNotes(symbol: string, stockName: string) {
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif;background:#fff;color:#111;padding:40px 60px;max-width:800px;margin:0 auto}
     @page{size:A4 portrait;margin:20mm 18mm}
-    @media print{.toolbar{display:none!important}body{padding:0}}
+    @media print{.toolbar{display:none!important}body{padding:0}*{color:#000!important;-webkit-print-color-adjust:exact}}
     p{margin-bottom:6px;line-height:1.75}
     strong{font-weight:700}em{font-style:italic}
     img{max-width:100%;border-radius:4px;margin:8px 0}
@@ -77,11 +69,11 @@ async function exportNotes(symbol: string, stockName: string) {
 </body>
 </html>`;
 
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, "_blank");
-  if (!win) alert("请允许弹出窗口后重试");
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  const win = window.open("", "_blank");
+  if (!win) { alert("请允许弹出窗口后重试"); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
 }
 
 const INTERVALS = [{ label: "日K", value: "1d" }, { label: "周K", value: "1wk" }, { label: "月K", value: "1mo" }];
