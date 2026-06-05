@@ -17,6 +17,14 @@ async function exportNotes(symbol: string, stockName: string) {
   // Fetch fresh data directly from API
   const res = await fetch(`/api/notes?symbol=${symbol}`);
   const notes: Note[] = await res.json();
+  // Debug: show first note content
+  if (notes.length > 0) {
+    const first = notes[0];
+    alert(`共${notes.length}条笔记\n第一条内容前50字：\n${first.content.slice(0, 50)}`);
+  } else {
+    alert("没有抓到笔记，notes为空");
+    return;
+  }
 
   const sorted = [...notes].sort((a, b) => {
     if (a.starred !== b.starred) return a.starred ? -1 : 1;
@@ -85,7 +93,7 @@ export default function StockPage() {
   const decodedSymbol = decodeURIComponent(symbol);
 
   // Resizable notes panel
-  const [notesWidth, setNotesWidth] = useState(45); // percent
+  const [notesWidth, setNotesWidth] = useState(48); // percent
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
