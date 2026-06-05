@@ -13,6 +13,60 @@ type Note = { id: number; date: string; content: string; starred: boolean; image
 type Stock = { id: number; symbol: string; name: string; notebook: boolean };
 type Holding = { id: number; type: string; date: string; shares: string; price: string; currency: string; fee: string; note: string };
 
+function exportNotes(symbol: string, notes: Note[], stocks: Stock[]) {
+  const stockName = stocks.find(s => s.symbol === symbol)?.name ?? "";
+  const sorted = [...notes].sort((a, b) => {
+    if (a.starred !== b.starred) return a.starred ? -1 : 1;
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return b.id - a.id;
+  });
+
+  const notesHtml = sorted.map(note => {
+    const idx = note.content.indexOf("\n");
+    const title = idx === -1 ? note.content : note.content.slice(0, idx);
+    const body = idx === -1 ? "" : note.content.slice(idx + 1).replace(/<p><\/p>/g, "").replace(/<p>\s*<\/p>/g, "");
+    return `
+      <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #f0f0f0;page-break-inside:avoid">
+        <div style="font-size:11px;color:#aaa;margin-bottom:6px;font-family:monospace">
+          ${note.starred ? '<span style="color:#f59e0b">★</span> ' : ''}${note.date}
+        </div>
+        ${title ? `<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:8px;line-height:1.4">${title}</div>` : ""}
+        ${body ? `<div style="font-size:14px;color:#333;line-height:1.75">${body}</div>` : ""}
+      </div>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${symbol} - 投资笔记</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "PingFang SC","Microsoft YaHei",Arial,sans-serif; background:#fff; color:#111; padding:40px 60px; max-width:800px; margin:0 auto; }
+    @page { size: A4 portrait; margin: 20mm 18mm; }
+    @media print { .toolbar { display:none !important; } body { padding:0; } }
+  </style>
+</head>
+<body>
+  <div class="toolbar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;padding-bottom:16px;border-bottom:1px solid #e5e7eb">
+    <span style="font-size:13px;color:#888">预览模式 — 确认内容后点击打印</span>
+    <button onclick="window.print()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:14px;cursor:pointer;font-family:inherit">🖨️ 打印 / 保存 PDF</button>
+  </div>
+  <div style="margin-bottom:36px;padding-bottom:24px;border-bottom:2px solid #111">
+    <div style="font-size:10px;color:#aaa;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">价值投资笔记</div>
+    <div style="font-size:32px;font-weight:900;line-height:1.1">${symbol}</div>
+    ${stockName ? `<div style="font-size:16px;color:#666;margin-top:4px">${stockName}</div>` : ""}
+    <div style="font-size:10px;color:#aaa;margin-top:10px">导出日期：${new Date().toLocaleDateString("zh-CN")} · 共 ${notes.length} 条笔记</div>
+  </div>
+  ${notesHtml}
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
 const INTERVALS = [{ label: "日K", value: "1d" }, { label: "周K", value: "1wk" }, { label: "月K", value: "1mo" }];
 const RANGES = [{ label: "3月", value: "3mo" }, { label: "6月", value: "6mo" }, { label: "1年", value: "1y" }, { label: "2年", value: "2y" }, { label: "5年", value: "5y" }, { label: "10年", value: "10y" }];
 
@@ -300,7 +354,7 @@ export default function StockPage() {
       {stocks.find(s => s.symbol === decodedSymbol)?.notebook ? (
         /* NOTES: full-width notes only, no chart */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
-          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} centered />
+          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, notes, stocks)} centered />
         </div>
       ) : (
         <div ref={containerRef} className="flex flex-1 overflow-hidden min-h-0">
@@ -373,7 +427,7 @@ export default function StockPage() {
 
           {/* Right: notes */}
           <div className="flex-shrink-0 min-h-0 overflow-hidden flex flex-col bg-white" style={{ width: `${notesWidth}%` }}>
-            <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => window.open(`/stocks/${decodedSymbol}/print`, "_blank")} />
+            <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, notes, stocks)} />
           </div>
         </div>
       )}
