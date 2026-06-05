@@ -382,12 +382,13 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                 </div>
 
                 {/* Title + tags inline */}
-                <div className="flex items-center gap-2 px-5 pt-2.5 pb-1 border-b border-gray-100">
+                <div className="flex items-center flex-wrap gap-2 px-5 pt-2.5 pb-1 border-b border-gray-100">
                   <input type="text"
                     value={titles[note.id] ?? ""}
                     onChange={(e) => handleTitle(note.id, e.target.value)}
                     placeholder="标题"
-                    className="flex-1 min-w-0 text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white"
+                    size={Math.max(6, (titles[note.id] ?? "").length + 1)}
+                    className="text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white min-w-[6rem]"
                   />
                   {noteTagObjs.map(tag => (
                     <span key={tag.id}
