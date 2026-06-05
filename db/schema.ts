@@ -26,6 +26,19 @@ export const noteImages = pgTable("note_images", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const tags = pgTable("tags", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  color: text("color").notNull().default("#6b7280"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const noteTags = pgTable("note_tags", {
+  id: serial("id").primaryKey(),
+  noteId: integer("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),
+  tagId: integer("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
+});
+
 export const holdings = pgTable("holdings", {
   id: serial("id").primaryKey(),
   stockId: integer("stock_id").notNull().references(() => stocks.id, { onDelete: "cascade" }),
