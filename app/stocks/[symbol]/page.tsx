@@ -351,7 +351,7 @@ export default function StockPage() {
 
           {/* Drag handle */}
           <div
-            className="w-1 flex-shrink-0 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors group"
+            className="w-px flex-shrink-0 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors group"
             onMouseDown={(e) => {
               e.preventDefault();
               isDragging.current = true;
