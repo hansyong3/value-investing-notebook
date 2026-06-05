@@ -169,7 +169,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
           <button onClick={expandAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部展开</button>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={onExportPdf} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors">导出 PDF</button>
+          <button onClick={onExportPdf} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors">导出笔记</button>
           <button onClick={addNewNote} disabled={adding}
             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
             {adding ? "创建中..." : "+ 添加笔记"}

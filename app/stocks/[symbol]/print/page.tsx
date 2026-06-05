@@ -42,61 +42,78 @@ export default function PrintPage() {
   }, [decodedSymbol]);
 
   useEffect(() => {
-    if (ready && notes.length > 0) {
-      setTimeout(() => window.print(), 500);
-    }
-  }, [ready, notes]);
+    if (ready) setTimeout(() => window.print(), 600);
+  }, [ready]);
 
   if (!ready) return (
-    <div className="flex items-center justify-center h-screen text-gray-400">加载中...</div>
+    <div className="flex items-center justify-center h-screen text-gray-400 text-sm">加载中...</div>
   );
 
   return (
-    <div className="max-w-2xl mx-auto px-8 py-10 font-sans text-gray-900">
-      {/* Cover */}
-      <div className="mb-10 pb-6 border-b-2 border-gray-200">
-        <div className="text-xs text-gray-400 mb-1 uppercase tracking-widest">价值投资笔记</div>
-        <h1 className="text-3xl font-bold">{decodedSymbol}</h1>
-        {stockName && <div className="text-lg text-gray-500 mt-1">{stockName}</div>}
-        <div className="text-sm text-gray-400 mt-3">
-          导出日期：{new Date().toLocaleDateString("zh-CN")} · 共 {notes.length} 条笔记
-        </div>
-      </div>
+    <>
+      <style>{`
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif; }
+        @page {
+          size: A4 portrait;
+          margin: 20mm 18mm;
+        }
+        @media print {
+          body { font-size: 11pt; color: #111; }
+          .no-print { display: none !important; }
+          .page-break { break-before: page; }
+          .note-card { break-inside: avoid; }
+        }
+        .note-body img { max-width: 100%; border-radius: 6px; margin: 8px 0; }
+        .note-body p { margin: 4px 0; line-height: 1.6; }
+        .note-body strong { font-weight: 700; }
+        .note-body em { font-style: italic; }
+        .note-body [style*="color: rgb(220"] { color: #dc2626; }
+      `}</style>
 
-      {/* Notes */}
-      <div className="space-y-8">
-        {notes.map((note) => {
+      <div style={{ maxWidth: "170mm", margin: "0 auto", padding: "0" }}>
+        {/* Cover */}
+        <div style={{ marginBottom: "12mm", paddingBottom: "6mm", borderBottom: "2px solid #e5e7eb" }}>
+          <div style={{ fontSize: "9pt", color: "#9ca3af", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "1px" }}>
+            价值投资笔记
+          </div>
+          <h1 style={{ fontSize: "22pt", fontWeight: "800", margin: "0 0 4px 0" }}>{decodedSymbol}</h1>
+          {stockName && <div style={{ fontSize: "14pt", color: "#6b7280" }}>{stockName}</div>}
+          <div style={{ fontSize: "9pt", color: "#9ca3af", marginTop: "8px" }}>
+            导出日期：{new Date().toLocaleDateString("zh-CN")} · 共 {notes.length} 条笔记
+          </div>
+        </div>
+
+        {/* Notes */}
+        {notes.map((note, i) => {
           const { title, body } = parseContent(note.content);
           return (
-            <div key={note.id} className="break-inside-avoid">
-              <div className="flex items-center gap-2 mb-2">
-                {note.starred && <span className="text-yellow-400 text-sm">★</span>}
-                <span className="text-xs text-gray-400 font-mono">{note.date}</span>
+            <div key={note.id} className="note-card" style={{ marginBottom: "10mm", paddingBottom: "8mm", borderBottom: "1px solid #f3f4f6" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                {note.starred && <span style={{ color: "#fbbf24", fontSize: "10pt" }}>★</span>}
+                <span style={{ fontSize: "9pt", color: "#9ca3af", fontFamily: "monospace" }}>{note.date}</span>
               </div>
-              {title && <h2 className="text-lg font-bold text-gray-900 mb-2">{title}</h2>}
+              {title && (
+                <h2 style={{ fontSize: "13pt", fontWeight: "700", margin: "0 0 6px 0", color: "#111" }}>{title}</h2>
+              )}
               {body && (
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{body}</p>
+                <div
+                  className="note-body"
+                  style={{ fontSize: "10.5pt", color: "#374151", lineHeight: "1.7" }}
+                  dangerouslySetInnerHTML={{ __html: body }}
+                />
               )}
               {note.images.length > 0 && (
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "8px" }}>
                   {note.images.map((img) => (
-                    <img key={img.id} src={img.url} alt="" className="rounded-lg w-full object-cover" />
+                    <img key={img.id} src={img.url} alt="" style={{ width: "100%", borderRadius: "6px" }} />
                   ))}
                 </div>
               )}
-              <div className="mt-4 border-b border-gray-100" />
             </div>
           );
         })}
       </div>
-
-      <style>{`
-        @media print {
-          @page { margin: 2cm; }
-          body { font-size: 12pt; }
-          .break-inside-avoid { break-inside: avoid; }
-        }
-      `}</style>
-    </div>
+    </>
   );
 }
