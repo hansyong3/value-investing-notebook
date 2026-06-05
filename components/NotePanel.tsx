@@ -383,13 +383,17 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
 
                 {/* Title + tags inline */}
                 <div className="flex items-center flex-wrap gap-2 px-5 pt-2.5 pb-1 border-b border-gray-100">
-                  <input type="text"
-                    value={titles[note.id] ?? ""}
-                    onChange={(e) => handleTitle(note.id, e.target.value)}
-                    placeholder="标题"
-                    size={Math.max(6, (titles[note.id] ?? "").length + 1)}
-                    className="text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white min-w-[6rem]"
-                  />
+                  <div className="relative min-w-[6rem]">
+                    <span className="invisible whitespace-pre text-lg font-bold px-0 block min-w-[6rem]">
+                      {titles[note.id] || "标题"}
+                    </span>
+                    <input type="text"
+                      value={titles[note.id] ?? ""}
+                      onChange={(e) => handleTitle(note.id, e.target.value)}
+                      placeholder="标题"
+                      className="absolute inset-0 w-full text-lg font-bold text-gray-800 placeholder-gray-300 focus:outline-none bg-white"
+                    />
+                  </div>
                   {noteTagObjs.map(tag => (
                     <span key={tag.id}
                       className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full text-white flex-shrink-0"
