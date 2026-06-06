@@ -192,7 +192,7 @@ export default function StockPage() {
       {/* Left sidebar */}
       <aside className="w-40 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">
         <div className="px-3 py-2.5 border-b border-gray-200">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">观察清单</span>
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Hans价值投资</span>
         </div>
 
         <div className="flex-1 overflow-y-auto">
