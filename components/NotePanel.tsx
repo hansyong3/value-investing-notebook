@@ -103,6 +103,18 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
         const err = await res.json().catch(() => ({}));
         alert("复制失败：" + (err.error ?? res.status));
       } else {
+        const newNote = await res.json();
+        // Copy tags to new note
+        const tagIds = noteTags[note.id] ?? [];
+        if (tagIds.length > 0 && newNote?.id) {
+          await Promise.all(tagIds.map(tagId =>
+            fetch("/api/note-tags", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ noteId: newNote.id, tagId }),
+            })
+          ));
+        }
         setCopySuccess(targetSymbol);
         setTimeout(() => setCopySuccess(null), 3000);
       }
