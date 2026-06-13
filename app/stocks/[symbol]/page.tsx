@@ -121,6 +121,10 @@ export default function StockPage() {
   // Drag-and-drop state
   const [dragId, setDragId] = useState<number | null>(null);
 
+  // Wealth manager investment targets
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [wealthTargets, setWealthTargets] = useState<any[]>([]);
+
   const fetchStocks = useCallback(async () => {
     const res = await fetch("/api/stocks");
     const data = await res.json();
@@ -154,8 +158,15 @@ export default function StockPage() {
     if (Array.isArray(data)) setHoldingsList(data);
   }, [decodedSymbol]);
 
+  const fetchWealthTargets = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/wealth-target?ticker=${encodeURIComponent(decodedSymbol)}`);
+      if (res.ok) setWealthTargets(await res.json());
+    } catch { /* ignore */ }
+  }, [decodedSymbol]);
+
   useEffect(() => { fetchStocks(); }, [fetchStocks]);
-  useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); }, [fetchPrice, fetchNotes, fetchHoldings]);
+  useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets]);
 
   async function handleDrop(targetId: number) {
     if (dragId === null || dragId === targetId) return;
@@ -422,6 +433,44 @@ export default function StockPage() {
             <div className="flex-[9] min-h-0 overflow-hidden">
               <HoldingsPanel symbol={decodedSymbol} holdings={holdingsList} onSaved={fetchHoldings} currentPrice={latestPrice} />
             </div>
+
+            {/* Wealth Manager Targets */}
+            {wealthTargets.length > 0 && (
+              <div className="border-t border-gray-200 overflow-y-auto" style={{ maxHeight: 180 }}>
+                <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">我的目标（财富管理）</span>
+                </div>
+                {wealthTargets.map((t, i) => (
+                  <div key={i} className="px-3 py-2 border-b border-gray-100 text-xs">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      {t.bucket && <span className="text-gray-400">{t.bucket}</span>}
+                      {t.tier && <span className="font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{t.tier}</span>}
+                      {t.certainty && (
+                        <span className={`px-1.5 py-0.5 rounded font-medium ${t.certainty === '高' ? 'bg-green-50 text-green-700' : t.certainty === '中' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600'}`}>
+                          确定性 {t.certainty}
+                        </span>
+                      )}
+                      {t.odds && (
+                        <span className={`px-1.5 py-0.5 rounded font-medium ${t.odds === '高' ? 'bg-green-50 text-green-700' : t.odds === '中' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600'}`}>
+                          赔率 {t.odds}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap text-gray-700">
+                      {t.targetShares && <span>目标股数 <strong>{t.targetShares}</strong></span>}
+                      {t.targetPrice && (
+                        <span className={latestPrice && parseFloat(t.targetPrice) >= latestPrice ? 'text-green-600 font-semibold' : ''}>
+                          可买入价 <strong>{t.targetPrice}</strong>
+                          {latestPrice && parseFloat(t.targetPrice) >= latestPrice && ' ✓'}
+                        </span>
+                      )}
+                      {t.excitingPrice && <span>激动价 <strong>{t.excitingPrice}</strong></span>}
+                    </div>
+                    {t.notes && <p className="text-gray-400 mt-1">{t.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Drag handle */}
