@@ -437,39 +437,43 @@ export default function StockPage() {
 
             {/* Wealth Manager Targets */}
             {wealthTargets.length > 0 && (
-              <div className="border-t border-gray-200 overflow-y-auto" style={{ maxHeight: 180 }}>
-                <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">我的目标（财富管理）</span>
-                </div>
-                {wealthTargets.map((t, i) => (
-                  <div key={i} className="px-3 py-2 border-b border-gray-100 text-xs">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      {t.bucket && <span className="text-gray-400">{t.bucket}</span>}
-                      {t.tier && <span className="font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{t.tier}</span>}
-                      {t.certainty && (
-                        <span className={`px-1.5 py-0.5 rounded font-medium ${t.certainty === '高' ? 'bg-green-50 text-green-700' : t.certainty === '中' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600'}`}>
-                          确定性 {t.certainty}
-                        </span>
-                      )}
-                      {t.odds && (
-                        <span className={`px-1.5 py-0.5 rounded font-medium ${t.odds === '高' ? 'bg-green-50 text-green-700' : t.odds === '中' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600'}`}>
-                          赔率 {t.odds}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 flex-wrap text-gray-700">
-                      {t.targetShares && <span>目标股数 <strong>{t.targetShares}</strong></span>}
+              <div className="border-t border-gray-200">
+                {wealthTargets.map((t, i) => {
+                  const buyable = latestPrice && t.targetPrice && parseFloat(t.targetPrice) >= latestPrice
+                  const colorBadge = (val: string) =>
+                    val === '高' ? 'bg-green-50 text-green-700' : val === '中' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600'
+                  return (
+                    <div key={i} className="px-3 py-2 flex items-center gap-3 text-xs flex-wrap border-b border-gray-100 last:border-0">
+                      {/* 账户 & 梯队 */}
+                      {t.bucket && <span className="text-gray-400 shrink-0">{t.bucket}</span>}
+                      {t.tier && <span className="font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded shrink-0">梯队 {t.tier}</span>}
+
+                      <span className="text-gray-300">|</span>
+
+                      {/* 确定性 & 赔率 */}
+                      {t.certainty && <span className={`px-1.5 py-0.5 rounded font-medium shrink-0 ${colorBadge(t.certainty)}`}>确定性 {t.certainty}</span>}
+                      {t.odds && <span className={`px-1.5 py-0.5 rounded font-medium shrink-0 ${colorBadge(t.odds)}`}>赔率 {t.odds}</span>}
+
+                      <span className="text-gray-300">|</span>
+
+                      {/* 目标股数 */}
+                      {t.targetShares && <span className="text-gray-500 shrink-0">目标 <strong className="text-gray-800">{t.targetShares}</strong> 股</span>}
+
+                      {/* 可买入价 */}
                       {t.targetPrice && (
-                        <span className={latestPrice && parseFloat(t.targetPrice) >= latestPrice ? 'text-green-600 font-semibold' : ''}>
-                          可买入价 <strong>{t.targetPrice}</strong>
-                          {latestPrice && parseFloat(t.targetPrice) >= latestPrice && ' ✓'}
+                        <span className={`shrink-0 ${buyable ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                          可买入 <strong>{t.targetPrice}</strong>{buyable ? ' ✓' : ''}
                         </span>
                       )}
-                      {t.excitingPrice && <span>激动价 <strong>{t.excitingPrice}</strong></span>}
+
+                      {/* 激动价 */}
+                      {t.excitingPrice && <span className="text-gray-500 shrink-0">激动价 <strong className="text-gray-800">{t.excitingPrice}</strong></span>}
+
+                      {/* 备注 */}
+                      {t.notes && <><span className="text-gray-300">|</span><span className="text-gray-400 italic">{t.notes}</span></>}
                     </div>
-                    {t.notes && <p className="text-gray-400 mt-1">{t.notes}</p>}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
