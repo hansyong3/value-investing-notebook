@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(`${baseUrl}/api/public/target?ticker=${encodeURIComponent(ticker)}&name=${encodeURIComponent(name)}`, {
       headers: { 'x-api-key': apiKey },
-      next: { revalidate: 60 },
+      cache: 'no-store',
     })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()
