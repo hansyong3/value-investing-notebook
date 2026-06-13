@@ -453,7 +453,7 @@ export default function StockPage() {
                       )}
                       {t.odds && (
                         <span className={`px-1.5 py-0.5 rounded font-medium ${t.odds === '高' ? 'bg-green-50 text-green-700' : t.odds === '中' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600'}`}>
-                          赔率 {t.odds}
+                          当前赔率 {t.odds}
                         </span>
                       )}
                     </div>
