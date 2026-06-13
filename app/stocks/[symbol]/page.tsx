@@ -160,10 +160,11 @@ export default function StockPage() {
 
   const fetchWealthTargets = useCallback(async () => {
     try {
-      const res = await fetch(`/api/wealth-target?ticker=${encodeURIComponent(decodedSymbol)}`);
+      const stockName = stocks.find(s => s.symbol === decodedSymbol)?.name ?? '';
+      const res = await fetch(`/api/wealth-target?ticker=${encodeURIComponent(decodedSymbol)}&name=${encodeURIComponent(stockName)}`);
       if (res.ok) setWealthTargets(await res.json());
     } catch { /* ignore */ }
-  }, [decodedSymbol]);
+  }, [decodedSymbol, stocks]);
 
   useEffect(() => { fetchStocks(); }, [fetchStocks]);
   useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets]);
