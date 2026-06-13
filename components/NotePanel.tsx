@@ -88,13 +88,27 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
 
   async function copyNoteToNotebook(note: Note, targetSymbol: string) {
     setCopying(note.id);
-    await fetch("/api/notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol: targetSymbol, date: note.date, content: note.content }),
-    });
-    setCopying(null);
-    setCopyPopover(null);
+    const currentContent =
+      titles[note.id] !== undefined || bodies[note.id] !== undefined
+        ? (titles[note.id] ?? "") + (bodies[note.id] ? "\n" + bodies[note.id] : "")
+        : note.content;
+    try {
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: targetSymbol, date: note.date, content: currentContent }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert("复制失败：" + (err.error ?? res.status));
+      }
+    } catch (e) {
+      alert("复制失败，请检查网络");
+      console.error(e);
+    } finally {
+      setCopying(null);
+      setCopyPopover(null);
+    }
   }
 
   useEffect(() => {
