@@ -50,6 +50,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const [tagPopover, setTagPopover] = useState<number | null>(null);
   const [copyPopover, setCopyPopover] = useState<number | null>(null);
   const [copying, setCopying] = useState<number | null>(null);
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const copyPopoverRef = useRef<HTMLDivElement>(null);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
@@ -101,6 +102,9 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         alert("复制失败：" + (err.error ?? res.status));
+      } else {
+        setCopySuccess(targetSymbol);
+        setTimeout(() => setCopySuccess(null), 3000);
       }
     } catch (e) {
       alert("复制失败，请检查网络");
@@ -278,6 +282,11 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
             <button onClick={expandAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部展开</button>
           </div>
           <div className="flex items-center gap-2">
+            {copySuccess && (
+              <span className="text-xs text-green-600 bg-green-50 border border-green-200 px-2 py-1 rounded transition-all">
+                ✓ 已复制到笔记本
+              </span>
+            )}
             <button
               onClick={async () => { setExporting(true); try { await onExportPdf(); } finally { setExporting(false); } }}
               disabled={exporting}
