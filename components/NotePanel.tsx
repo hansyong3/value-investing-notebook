@@ -8,12 +8,15 @@ type NoteImage = { id: number; url: string };
 type Note = { id: number; date: string; content: string; starred: boolean; images: NoteImage[]; createdAt?: string };
 type Tag = { id: number; name: string; color: string };
 
+type Notebook = { id: number; symbol: string; name: string };
+
 type Props = {
   symbol: string;
   notes: Note[];
   activeDate: string | null;
   onNotesSaved: () => void;
   onExportPdf: () => Promise<void>;
+  notebooks?: Notebook[];
   centered?: boolean;
 };
 
@@ -29,7 +32,7 @@ function stripHtml(html: string) {
 
 const TAG_COLORS = ["#3b82f6","#22c55e","#ef4444","#f97316","#eab308","#8b5cf6","#ec4899","#6b7280"];
 
-export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, centered }: Props) {
+export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, notebooks = [], centered }: Props) {
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [bodies, setBodies] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
@@ -45,6 +48,9 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [noteTags, setNoteTags] = useState<Record<number, number[]>>({});
   const [tagPopover, setTagPopover] = useState<number | null>(null);
+  const [copyPopover, setCopyPopover] = useState<number | null>(null);
+  const [copying, setCopying] = useState<number | null>(null);
+  const copyPopoverRef = useRef<HTMLDivElement>(null);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -70,16 +76,26 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   useEffect(() => { fetchTags(); }, [fetchTags]);
   useEffect(() => { fetchNoteTags(notes.map(n => n.id)); }, [notes, fetchNoteTags]);
 
-  // Close popover on outside click
+  // Close popovers on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setTagPopover(null);
-      }
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) setTagPopover(null);
+      if (copyPopoverRef.current && !copyPopoverRef.current.contains(e.target as Node)) setCopyPopover(null);
     }
-    if (tagPopover !== null) document.addEventListener("mousedown", handleClick);
+    if (tagPopover !== null || copyPopover !== null) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [tagPopover]);
+  }, [tagPopover, copyPopover]);
+
+  async function copyNoteToNotebook(note: Note, targetSymbol: string) {
+    setCopying(note.id);
+    await fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol: targetSymbol, date: note.date, content: note.content }),
+    });
+    setCopying(null);
+    setCopyPopover(null);
+  }
 
   useEffect(() => {
     setTitles(prev => {
@@ -300,6 +316,34 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                   </div>
                   <div className="flex items-center gap-1.5 relative">
                     {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
+
+                    {/* Copy to notebook button */}
+                    {notebooks.length > 0 && (
+                      <div className="relative">
+                        <button
+                          onClick={() => { setCopyPopover(copyPopover === note.id ? null : note.id); setTagPopover(null); }}
+                          className="text-gray-400 hover:text-purple-500 border border-gray-200 hover:border-purple-300 px-1.5 py-0.5 rounded transition-colors"
+                          title="复制到笔记本">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                          </svg>
+                        </button>
+                        {copyPopover === note.id && (
+                          <div ref={copyPopoverRef}
+                            className="absolute right-0 top-8 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-2 w-44">
+                            <div className="text-xs font-medium text-gray-500 mb-1.5 px-1">复制到笔记本</div>
+                            {notebooks.filter(nb => nb.symbol !== symbol).map(nb => (
+                              <button key={nb.id}
+                                onClick={() => copyNoteToNotebook(note, nb.symbol)}
+                                disabled={copying === note.id}
+                                className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-purple-50 hover:text-purple-700 transition-colors disabled:opacity-40 truncate">
+                                {copying === note.id ? "复制中..." : nb.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Tag button */}
                     <div className="relative">
