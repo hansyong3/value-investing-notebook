@@ -1,91 +1,91 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 
 type Note = { id: number; content: string; date: string };
 
-const STORAGE_KEY = "diary_card_last_shown";
 const HOUR_MS = 60 * 60 * 1000;
 
 function stripHtml(html: string) {
-  return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
 }
 
 function parseNote(note: Note) {
   const raw = note.content ?? "";
   const nl = raw.indexOf("\n");
-  const titleRaw = nl > 0 ? raw.slice(0, nl).trim() : raw.trim();
-  const bodyRaw = nl > 0 ? raw.slice(nl + 1) : "";
-  const title = stripHtml(titleRaw);
-  const body = stripHtml(bodyRaw);
+  const title = stripHtml(nl > 0 ? raw.slice(0, nl) : raw);
+  const body = stripHtml(nl > 0 ? raw.slice(nl + 1) : "");
   return { title, body };
+}
+
+function pickRandom<T>(pool: T[], exclude?: T): T | null {
+  if (!pool.length) return null;
+  const filtered = exclude ? pool.filter(n => n !== exclude) : pool;
+  const src = filtered.length ? filtered : pool;
+  return src[Math.floor(Math.random() * src.length)];
 }
 
 export default function DiaryCard() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [current, setCurrent] = useState<Note | null>(null);
   const [visible, setVisible] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const pickRandom = useCallback((pool: Note[]) => {
-    if (!pool.length) return null;
-    return pool[Math.floor(Math.random() * pool.length)];
-  }, []);
-
-  const show = useCallback((pool: Note[]) => {
-    const note = pickRandom(pool);
-    if (!note) return;
-    setCurrent(note);
-    setVisible(true);
-    localStorage.setItem(STORAGE_KEY, Date.now().toString());
-  }, [pickRandom]);
-
-  // Load diary notes
   useEffect(() => {
-    async function load() {
+    async function loadAndShow() {
       try {
-        // Find notebook named 投资日记 (or containing 日记)
         const stocksRes = await fetch("/api/stocks");
-        const stocks: { id: number; symbol: string; name: string; notebook: boolean }[] = await stocksRes.json();
-        const diaryStock = stocks.find(s => s.notebook && s.name.includes("日记"));
-        if (!diaryStock) { setLoaded(true); return; }
+        const stocks: { symbol: string; name: string; notebook: boolean }[] = await stocksRes.json();
+
+        // Match notebook with "日记" in the name; fall back to any notebook
+        const diaryStock =
+          stocks.find(s => s.notebook && s.name.includes("日记")) ??
+          stocks.find(s => s.notebook);
+
+        if (!diaryStock) return;
 
         const notesRes = await fetch(`/api/notes?symbol=${encodeURIComponent(diaryStock.symbol)}`);
         const data: Note[] = await notesRes.json();
-        if (!Array.isArray(data) || !data.length) { setLoaded(true); return; }
+        if (!Array.isArray(data) || !data.length) return;
+
         setNotes(data);
-        setLoaded(true);
-        return data;
+
+        // Always show on every page load
+        const note = pickRandom(data);
+        if (note) {
+          setCurrent(note);
+          setVisible(true);
+        }
       } catch {
-        setLoaded(true);
-        return [];
+        // silently ignore
       }
     }
 
-    load().then((data) => {
-      if (!data || !data.length) return;
-      // Show on load if it's been more than 1 hour since last shown
-      const last = parseInt(localStorage.getItem(STORAGE_KEY) ?? "0", 10);
-      if (Date.now() - last >= HOUR_MS) {
-        show(data);
-      }
-    });
-  }, [show]);
+    loadAndShow();
+  }, []);
 
-  // Hourly auto-show
+  // Show a new random card every hour
   useEffect(() => {
-    if (!loaded) return;
     timerRef.current = setInterval(() => {
       setNotes(prev => {
-        if (prev.length) show(prev);
+        const note = pickRandom(prev);
+        if (note) {
+          setCurrent(note);
+          setVisible(true);
+        }
         return prev;
       });
     }, HOUR_MS);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [loaded, show]);
+  }, []);
 
   if (!visible || !current) return null;
 
@@ -129,11 +129,8 @@ export default function DiaryCard() {
       <div className="px-4 pb-3 flex justify-end">
         <button
           onClick={() => {
-            const next = pickRandom(notes.filter(n => n.id !== current.id) || notes);
-            if (next) {
-              setCurrent(next);
-              localStorage.setItem(STORAGE_KEY, Date.now().toString());
-            }
+            const next = pickRandom(notes, current);
+            if (next) setCurrent(next);
           }}
           className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors border border-amber-200 hover:border-amber-400 px-3 py-1 rounded-full"
         >
