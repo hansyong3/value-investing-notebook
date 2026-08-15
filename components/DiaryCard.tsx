@@ -93,11 +93,11 @@ export default function DiaryCard() {
 
   return (
     <div
-      className="fixed bottom-5 right-5 z-50 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
-      style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}
+      className="fixed bottom-5 right-5 z-50 flex flex-col bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+      style={{ width: 360, maxHeight: 480, boxShadow: "0 8px 32px rgba(0,0,0,0.14)" }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 border-b border-amber-100">
+      <div className="flex items-center justify-between px-4 py-3 bg-amber-50 border-b border-amber-100 flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="text-amber-400 text-sm">📖</span>
           <span className="text-xs font-semibold text-amber-700">投资日记回顾</span>
@@ -105,34 +105,34 @@ export default function DiaryCard() {
         </div>
         <button
           onClick={() => setVisible(false)}
-          className="text-gray-300 hover:text-gray-500 text-base leading-none transition-colors"
+          className="text-gray-300 hover:text-gray-500 text-lg leading-none transition-colors"
           title="关闭"
         >
           ×
         </button>
       </div>
 
-      {/* Content */}
-      <div className="px-4 py-3">
+      {/* Content — scrollable */}
+      <div className="px-5 py-4 overflow-y-auto flex-1">
         {title && (
-          <p className="text-sm font-semibold text-gray-800 mb-1.5 leading-snug line-clamp-2">{title}</p>
+          <p className="text-sm font-semibold text-gray-800 mb-2 leading-snug">{title}</p>
         )}
         {body && (
-          <p className="text-xs text-gray-500 leading-relaxed line-clamp-4">{body}</p>
+          <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-wrap">{body}</p>
         )}
         {!title && !body && (
-          <p className="text-xs text-gray-300 italic">（无内容）</p>
+          <p className="text-sm text-gray-300 italic">（无内容）</p>
         )}
       </div>
 
       {/* Footer */}
-      <div className="px-4 pb-3 flex justify-end">
+      <div className="px-5 py-3 border-t border-gray-100 flex justify-end flex-shrink-0">
         <button
           onClick={() => {
             const next = pickRandom(notes, current);
             if (next) setCurrent(next);
           }}
-          className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors border border-amber-200 hover:border-amber-400 px-3 py-1 rounded-full"
+          className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-full"
         >
           下一篇 →
         </button>
