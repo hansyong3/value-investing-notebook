@@ -5,6 +5,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import NotePanel from "@/components/NotePanel";
 import HoldingsPanel from "@/components/HoldingsPanel";
+import DiaryCard from "@/components/DiaryCard";
 
 const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false });
 
@@ -200,6 +201,7 @@ export default function StockPage() {
 
   return (
     <div className="flex h-screen bg-white text-gray-900 overflow-hidden">
+      <DiaryCard />
 
       {/* Left sidebar */}
       <aside className="w-40 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">

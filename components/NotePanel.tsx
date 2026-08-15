@@ -114,7 +114,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       console.error(e);
     } finally {
       setSendingQuote(null);
-      setQuotePopover(null);
     }
   }
 
