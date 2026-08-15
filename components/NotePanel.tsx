@@ -9,7 +9,7 @@ type Note = { id: number; date: string; content: string; starred: boolean; image
 type Tag = { id: number; name: string; color: string };
 
 type Notebook = { id: number; symbol: string; name: string };
-type CKBook = { id: number; title: string };
+const CK_DEFAULT_BOOK_ID = 29; // Hans价值投资 in compound-knowledge
 
 type Props = {
   symbol: string;
@@ -50,11 +50,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const [noteTags, setNoteTags] = useState<Record<number, number[]>>({});
   const [tagPopover, setTagPopover] = useState<number | null>(null);
   const [copyPopover, setCopyPopover] = useState<number | null>(null);
-  const [quotePopover, setQuotePopover] = useState<number | null>(null);
-  const [ckBooks, setCkBooks] = useState<CKBook[]>([]);
   const [sendingQuote, setSendingQuote] = useState<number | null>(null);
   const [quoteSuccess, setQuoteSuccess] = useState(false);
-  const quotePopoverRef = useRef<HTMLDivElement>(null);
   const [copying, setCopying] = useState<number | null>(null);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const copyPopoverRef = useRef<HTMLDivElement>(null);
@@ -88,22 +85,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     function handleClick(e: MouseEvent) {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) setTagPopover(null);
       if (copyPopoverRef.current && !copyPopoverRef.current.contains(e.target as Node)) setCopyPopover(null);
-      if (quotePopoverRef.current && !quotePopoverRef.current.contains(e.target as Node)) setQuotePopover(null);
     }
-    if (tagPopover !== null || copyPopover !== null || quotePopover !== null) document.addEventListener("mousedown", handleClick);
+    if (tagPopover !== null || copyPopover !== null) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [tagPopover, copyPopover, quotePopover]);
+  }, [tagPopover, copyPopover]);
 
-  // Fetch compound-knowledge books when quote popover opens
-  useEffect(() => {
-    if (quotePopover === null || ckBooks.length > 0) return;
-    fetch("/api/ck-proxy?path=/api/books")
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setCkBooks(data); });
-  }, [quotePopover, ckBooks.length]);
-
-  async function sendToQuotes(note: Note, bookId: number) {
+  async function sendToQuotes(note: Note) {
     setSendingQuote(note.id);
+    const bookId = CK_DEFAULT_BOOK_ID;
     const currentContent =
       titles[note.id] !== undefined || bodies[note.id] !== undefined
         ? (titles[note.id] ?? "") + (bodies[note.id] ? "\n" + bodies[note.id] : "")
@@ -424,32 +413,13 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                     )}
 
                     {/* Send to 原则 button */}
-                    <div className="relative">
-                      <button
-                        onClick={() => { setQuotePopover(quotePopover === note.id ? null : note.id); setTagPopover(null); setCopyPopover(null); }}
-                        className="text-gray-400 hover:text-purple-500 border border-gray-200 hover:border-purple-300 px-1.5 py-0.5 rounded transition-colors"
-                        title="发送到「原则」">
-                        ✨
-                      </button>
-                      {quotePopover === note.id && (
-                        <div ref={quotePopoverRef}
-                          className="absolute right-0 top-8 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-2 w-48">
-                          <div className="text-xs font-medium text-gray-500 mb-1.5 px-1">发送到「原则」</div>
-                          <div className="text-xs text-gray-400 px-1 mb-2">选择关联的书籍</div>
-                          {ckBooks.length === 0 && <div className="text-xs text-gray-400 px-1 py-2">加载中...</div>}
-                          <div className="max-h-48 overflow-y-auto space-y-0.5">
-                            {ckBooks.map(book => (
-                              <button key={book.id}
-                                onClick={() => sendToQuotes(note, book.id)}
-                                disabled={sendingQuote === note.id}
-                                className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-purple-50 hover:text-purple-700 transition-colors disabled:opacity-40 truncate">
-                                {sendingQuote === note.id ? "发送中..." : book.title}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => sendToQuotes(note)}
+                      disabled={sendingQuote === note.id}
+                      className="text-gray-400 hover:text-purple-500 border border-gray-200 hover:border-purple-300 px-1.5 py-0.5 rounded transition-colors disabled:opacity-40"
+                      title="发送到「原则」">
+                      {sendingQuote === note.id ? "…" : "✨"}
+                    </button>
 
                     {/* Tag button */}
                     <div className="relative">
