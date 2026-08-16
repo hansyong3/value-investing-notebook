@@ -9,7 +9,7 @@ type Note = { id: number; date: string; content: string; starred: boolean; image
 type Tag = { id: number; name: string; color: string };
 
 type Notebook = { id: number; symbol: string; name: string };
-const CK_DEFAULT_BOOK_ID = 29; // Hans价值投资 in compound-knowledge
+const CK_DEFAULT_BOOK_ID = 37; // Hans价值投资 in compound-knowledge
 
 type Props = {
   symbol: string;
