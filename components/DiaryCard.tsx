@@ -24,18 +24,31 @@ function parseNote(note: Note) {
   return { title, body };
 }
 
-function pickRandom<T>(pool: T[], exclude?: T): T | null {
-  if (!pool.length) return null;
-  const filtered = exclude ? pool.filter(n => n !== exclude) : pool;
-  const src = filtered.length ? filtered : pool;
-  return src[Math.floor(Math.random() * src.length)];
+// Fisher-Yates shuffle
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 export default function DiaryCard() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [current, setCurrent] = useState<Note | null>(null);
   const [visible, setVisible] = useState(false);
+  // Shuffle queue: we pop from the front; when empty, reshuffle
+  const queueRef = useRef<Note[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function nextFromQueue(pool: Note[]) {
+    if (!pool.length) return null;
+    if (!queueRef.current.length) {
+      queueRef.current = shuffle(pool);
+    }
+    return queueRef.current.shift()!;
+  }
 
   useEffect(() => {
     async function loadAndShow() {
@@ -43,7 +56,6 @@ export default function DiaryCard() {
         const stocksRes = await fetch("/api/stocks");
         const stocks: { symbol: string; name: string; notebook: boolean }[] = await stocksRes.json();
 
-        // Match notebook with "日记" in the name; fall back to any notebook
         const diaryStock =
           stocks.find(s => s.notebook && s.name.includes("日记")) ??
           stocks.find(s => s.notebook);
@@ -54,14 +66,13 @@ export default function DiaryCard() {
         const data: Note[] = await notesRes.json();
         if (!Array.isArray(data) || !data.length) return;
 
+        // Build initial shuffled queue
+        queueRef.current = shuffle(data);
         setNotes(data);
 
-        // Always show on every page load
-        const note = pickRandom(data);
-        if (note) {
-          setCurrent(note);
-          setVisible(true);
-        }
+        const note = queueRef.current.shift()!;
+        setCurrent(note);
+        setVisible(true);
       } catch {
         // silently ignore
       }
@@ -70,11 +81,11 @@ export default function DiaryCard() {
     loadAndShow();
   }, []);
 
-  // Show a new random card every hour
+  // Show next from queue every hour
   useEffect(() => {
     timerRef.current = setInterval(() => {
       setNotes(prev => {
-        const note = pickRandom(prev);
+        const note = nextFromQueue(prev);
         if (note) {
           setCurrent(note);
           setVisible(true);
@@ -85,6 +96,7 @@ export default function DiaryCard() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!visible || !current) return null;
@@ -129,8 +141,8 @@ export default function DiaryCard() {
       <div className="px-5 py-3 border-t border-gray-100 flex justify-end flex-shrink-0">
         <button
           onClick={() => {
-            const next = pickRandom(notes, current);
-            if (next) setCurrent(next);
+            const note = nextFromQueue(notes);
+            if (note) setCurrent(note);
           }}
           className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-full"
         >
