@@ -28,13 +28,13 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { symbol, date, target, action, note } = body;
+  const { symbol, date, target, action, price, quantity, note } = body;
   if (!symbol || !date) return NextResponse.json({ error: "symbol and date required" }, { status: 400 });
 
   const stockId = await getStockId(symbol);
   if (!stockId) return NextResponse.json({ error: "stock not found" }, { status: 404 });
 
-  const [row] = await db.insert(actionLog).values({ stockId, date, target: target ?? "", action: action ?? "买入", note: note ?? "" }).returning();
+  const [row] = await db.insert(actionLog).values({ stockId, date, target: target ?? "", action: action ?? "买入", price: price ?? "0", quantity: quantity ?? "0", note: note ?? "" }).returning();
   return NextResponse.json(row);
 }
 
@@ -43,13 +43,15 @@ export async function PATCH(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { id, date, target, action, note } = body;
+  const { id, date, target, action, price, quantity, note } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const updates: Partial<{ date: string; target: string; action: string; note: string }> = {};
+  const updates: Partial<{ date: string; target: string; action: string; price: string; quantity: string; note: string }> = {};
   if (date !== undefined) updates.date = date;
   if (target !== undefined) updates.target = target;
   if (action !== undefined) updates.action = action;
+  if (price !== undefined) updates.price = price;
+  if (quantity !== undefined) updates.quantity = quantity;
   if (note !== undefined) updates.note = note;
 
   const [row] = await db.update(actionLog).set(updates).where(eq(actionLog.id, id)).returning();

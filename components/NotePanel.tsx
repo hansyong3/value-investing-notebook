@@ -12,7 +12,7 @@ type Notebook = { id: number; symbol: string; name: string };
 const CK_DEFAULT_BOOK_ID = 37; // Hans价值投资 in compound-knowledge
 
 type Bar = { time: string; close: number };
-type ActionRow = { id: number; date: string; target: string; action: string; note: string; createdAt?: string };
+type ActionRow = { id: number; date: string; target: string; action: string; price?: string; quantity?: string; note: string; createdAt?: string };
 
 type Props = {
   symbol: string;
@@ -74,7 +74,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const [actionEditing, setActionEditing] = useState<Record<number, Partial<ActionRow>>>({});
   const actionSaveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const [actionSaving, setActionSaving] = useState<Set<number>>(new Set());
-  const [actionDraft, setActionDraft] = useState<{ date: string; target: string; action: string; note: string } | null>(null);
+  const [actionDraft, setActionDraft] = useState<{ date: string; target: string; action: string; price: string; quantity: string; note: string } | null>(null);
   const [addingAction, setAddingAction] = useState(false);
 
   function getActionVal(row: ActionRow, field: keyof ActionRow): string {
@@ -108,7 +108,15 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     await fetch("/api/action-log", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol, ...actionDraft }),
+      body: JSON.stringify({
+        symbol,
+        date: actionDraft.date,
+        target: actionDraft.target,
+        action: actionDraft.action,
+        price: actionDraft.price || "0",
+        quantity: actionDraft.quantity || "0",
+        note: actionDraft.note,
+      }),
     });
     setActionDraft(null);
     setAddingAction(false);
@@ -377,22 +385,27 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     });
   }
 
+  const today = new Date().toISOString().split("T")[0];
+
+  // The action table card sorts by the earliest row's createdAt date
+  const actionTableDate = actionRows && actionRows.length > 0
+    ? ([...actionRows].sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))[0].createdAt ?? today).split("T")[0]
+    : today;
+
   type Item =
-    | { kind: "note"; data: Note }
-    | { kind: "action"; data: ActionRow };
+    | { kind: "note"; data: Note; sortDate: string; sortCa: string }
+    | { kind: "actionTable"; sortDate: string; sortCa: string };
 
   const allItems: Item[] = [
-    ...notes.map(n => ({ kind: "note" as const, data: n })),
-    ...(actionRows ?? []).map(r => ({ kind: "action" as const, data: r })),
+    ...notes.map(n => ({ kind: "note" as const, data: n, sortDate: n.date, sortCa: n.createdAt ?? "" })),
+    ...(actionRows !== undefined ? [{ kind: "actionTable" as const, sortDate: actionTableDate, sortCa: actionTableDate }] : []),
   ];
   allItems.sort((a, b) => {
     const aStarred = a.kind === "note" && a.data.starred;
     const bStarred = b.kind === "note" && b.data.starred;
     if (aStarred !== bStarred) return aStarred ? -1 : 1;
-    if (a.data.date !== b.data.date) return b.data.date.localeCompare(a.data.date);
-    const caA = (a.data as { createdAt?: string }).createdAt ?? "";
-    const caB = (b.data as { createdAt?: string }).createdAt ?? "";
-    return caB.localeCompare(caA);
+    if (a.sortDate !== b.sortDate) return b.sortDate.localeCompare(a.sortDate);
+    return b.sortCa.localeCompare(a.sortCa);
   });
 
   return (
@@ -401,7 +414,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       <div className="border-b border-gray-200 bg-white flex-shrink-0">
         <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-4"} py-2 flex items-center justify-between`}>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length}{actionRows ? ` + ${actionRows.length} 行动` : ""})</span></span>
+            <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length})</span></span>
             <button onClick={collapseAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部收起</button>
             <button onClick={expandAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部展开</button>
           </div>
@@ -418,15 +431,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors disabled:opacity-40">
               {exporting ? "生成中..." : "导出 PDF"}
             </button>
-            {actionRows !== undefined && (
-              <button
-                onClick={() => { const d = new Date().toISOString().split("T")[0]; setActionDraft({ date: d, target: "", action: "买入", note: "" }); listRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }}
-                disabled={actionDraft !== null}
-                className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
-                + 添加行动
-              </button>
-            )}
-            <button onClick={addNewNote} disabled={adding}
+<button onClick={addNewNote} disabled={adding}
               className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
               {adding ? "创建中..." : "+ 添加笔记"}
             </button>
@@ -442,62 +447,134 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
             <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
           )}
 
-          {/* Action draft card */}
-          {actionDraft && (
-            <div className="rounded-xl border border-green-300 bg-white shadow-sm overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
-                <input type="date" value={actionDraft.date}
-                  onChange={e => setActionDraft(d => d ? { ...d, date: e.target.value } : d)}
-                  className="text-xs text-gray-400 border-none bg-transparent focus:outline-none" />
-                <input type="text" value={actionDraft.target} placeholder="标的 (如 AAPL)"
-                  onChange={e => setActionDraft(d => d ? { ...d, target: e.target.value } : d)}
-                  className="text-sm font-medium text-gray-700 w-28 bg-transparent border-b border-gray-200 focus:border-blue-400 focus:outline-none" />
-                <button
-                  onClick={() => setActionDraft(d => d ? { ...d, action: d.action === "买入" ? "卖出" : "买入" } : d)}
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${actionDraft.action === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                  {actionDraft.action}
-                </button>
-                <input type="text" value={actionDraft.note} placeholder="备注..."
-                  onChange={e => setActionDraft(d => d ? { ...d, note: e.target.value } : d)}
-                  onKeyDown={e => { if (e.key === "Enter") addActionRow(); }}
-                  className="flex-1 text-sm text-gray-500 bg-transparent border-b border-gray-200 focus:border-blue-400 focus:outline-none min-w-0" />
-                <button onClick={addActionRow} disabled={addingAction}
-                  className="text-xs bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white px-2.5 py-1 rounded transition-colors flex-shrink-0">
-                  {addingAction ? "…" : "保存"}
-                </button>
-                <button onClick={() => setActionDraft(null)}
-                  className="text-xs text-gray-400 hover:text-gray-600 px-1 transition-colors flex-shrink-0">取消</button>
-              </div>
-            </div>
-          )}
-
           {allItems.map((item) => {
-            // ── Action row card ──
-            if (item.kind === "action") {
-              const row = item.data;
-              const act = getActionVal(row, "action");
+            // ── Action table card ──
+            if (item.kind === "actionTable") {
+              const rows = [...(actionRows ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+              const cellCls = "px-3 py-1.5";
+              const inputCls = "w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none text-sm text-gray-700 transition-colors";
               return (
-                <div key={`action-${row.id}`}
-                  className={`rounded-xl border bg-white shadow-sm overflow-hidden ${act === "买入" ? "border-l-4 border-l-green-400" : "border-l-4 border-l-red-400"}`}>
-                  <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap group">
-                    <input type="date" value={getActionVal(row, "date")}
-                      onChange={e => patchActionRow(row.id, "date", e.target.value)}
-                      className="text-xs text-gray-400 border-none bg-transparent focus:outline-none" />
-                    <span className="text-gray-300 text-xs">📋</span>
-                    <input type="text" value={getActionVal(row, "target")} placeholder="标的"
-                      onChange={e => patchActionRow(row.id, "target", e.target.value)}
-                      className="text-sm font-semibold text-gray-700 w-24 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none" />
+                <div key="action-table" className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                  {/* Card header */}
+                  <div className="flex items-center justify-between px-5 py-2 border-b border-gray-100 bg-gray-50">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">{actionTableDate}</span>
+                      <span className="text-xs font-semibold text-gray-600">📋 行动记录</span>
+                      <span className="text-xs text-gray-300">({rows.length} 条)</span>
+                    </div>
                     <button
-                      onClick={() => patchActionRow(row.id, "action", act === "买入" ? "卖出" : "买入")}
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${act === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                      {act}
+                      onClick={() => { const d = new Date().toISOString().split("T")[0]; setActionDraft({ date: d, target: "", action: "买入", price: "", quantity: "", note: "" }); }}
+                      disabled={actionDraft !== null}
+                      className="text-xs text-green-600 hover:text-green-800 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded transition-colors disabled:opacity-40">
+                      + 添加行
                     </button>
-                    <input type="text" value={getActionVal(row, "note")} placeholder="备注..."
-                      onChange={e => patchActionRow(row.id, "note", e.target.value)}
-                      className="flex-1 text-sm text-gray-500 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none min-w-0" />
-                    {actionSaving.has(row.id) && <span className="text-xs text-gray-300 flex-shrink-0">保存中</span>}
-                    <button onClick={() => deleteActionRow(row.id)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-sm flex-shrink-0">✕</button>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          {["日期","标的","操作","价格","数量","备注",""].map((h, i) => (
+                            <th key={i} className={`text-left px-3 py-1.5 text-xs font-semibold text-gray-400 whitespace-nowrap ${i === 5 ? "w-full" : ""}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Draft row */}
+                        {actionDraft && (
+                          <tr className="border-b border-green-50 bg-green-50/30">
+                            <td className={cellCls}>
+                              <input type="date" value={actionDraft.date}
+                                onChange={e => setActionDraft(d => d ? { ...d, date: e.target.value } : d)}
+                                className="text-xs text-gray-500 bg-transparent border-b border-gray-200 focus:border-blue-400 focus:outline-none" />
+                            </td>
+                            <td className={cellCls}>
+                              <input type="text" value={actionDraft.target} placeholder="AAPL"
+                                onChange={e => setActionDraft(d => d ? { ...d, target: e.target.value } : d)}
+                                className={inputCls} autoFocus />
+                            </td>
+                            <td className={cellCls}>
+                              <button
+                                onClick={() => setActionDraft(d => d ? { ...d, action: d.action === "买入" ? "卖出" : "买入" } : d)}
+                                className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${actionDraft.action === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                                {actionDraft.action}
+                              </button>
+                            </td>
+                            <td className={cellCls}>
+                              <input type="number" value={actionDraft.price} placeholder="0"
+                                onChange={e => setActionDraft(d => d ? { ...d, price: e.target.value } : d)}
+                                className={`${inputCls} w-20`} />
+                            </td>
+                            <td className={cellCls}>
+                              <input type="number" value={actionDraft.quantity} placeholder="0"
+                                onChange={e => setActionDraft(d => d ? { ...d, quantity: e.target.value } : d)}
+                                className={`${inputCls} w-20`} />
+                            </td>
+                            <td className={cellCls}>
+                              <input type="text" value={actionDraft.note} placeholder="备注..."
+                                onChange={e => setActionDraft(d => d ? { ...d, note: e.target.value } : d)}
+                                onKeyDown={e => { if (e.key === "Enter") addActionRow(); }}
+                                className={inputCls} />
+                            </td>
+                            <td className={`${cellCls} whitespace-nowrap`}>
+                              <button onClick={addActionRow} disabled={addingAction}
+                                className="text-xs bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white px-2 py-0.5 rounded mr-1">
+                                {addingAction ? "…" : "保存"}
+                              </button>
+                              <button onClick={() => setActionDraft(null)}
+                                className="text-xs text-gray-400 hover:text-gray-600">取消</button>
+                            </td>
+                          </tr>
+                        )}
+
+                        {rows.map(row => (
+                          <tr key={row.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 group">
+                            <td className={cellCls}>
+                              <input type="date" value={getActionVal(row, "date")}
+                                onChange={e => patchActionRow(row.id, "date", e.target.value)}
+                                className="text-xs text-gray-400 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none" />
+                            </td>
+                            <td className={cellCls}>
+                              <input type="text" value={getActionVal(row, "target")} placeholder="标的"
+                                onChange={e => patchActionRow(row.id, "target", e.target.value)}
+                                className={inputCls} />
+                            </td>
+                            <td className={cellCls}>
+                              <button
+                                onClick={() => patchActionRow(row.id, "action", getActionVal(row, "action") === "买入" ? "卖出" : "买入")}
+                                className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${getActionVal(row, "action") === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                                {getActionVal(row, "action")}
+                              </button>
+                            </td>
+                            <td className={cellCls}>
+                              <input type="number" value={getActionVal(row, "price") ?? ""} placeholder="0"
+                                onChange={e => patchActionRow(row.id, "price", e.target.value)}
+                                className={`${inputCls} w-20`} />
+                            </td>
+                            <td className={cellCls}>
+                              <input type="number" value={getActionVal(row, "quantity") ?? ""} placeholder="0"
+                                onChange={e => patchActionRow(row.id, "quantity", e.target.value)}
+                                className={`${inputCls} w-20`} />
+                            </td>
+                            <td className={cellCls}>
+                              <input type="text" value={getActionVal(row, "note")} placeholder="备注..."
+                                onChange={e => patchActionRow(row.id, "note", e.target.value)}
+                                className={inputCls} />
+                              {actionSaving.has(row.id) && <span className="text-xs text-gray-300 ml-1">保存中</span>}
+                            </td>
+                            <td className={cellCls}>
+                              <button onClick={() => deleteActionRow(row.id)}
+                                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-sm">✕</button>
+                            </td>
+                          </tr>
+                        ))}
+
+                        {rows.length === 0 && !actionDraft && (
+                          <tr><td colSpan={7} className="text-center text-xs text-gray-300 py-4">暂无记录，点击「+ 添加行」开始</td></tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               );

@@ -45,6 +45,8 @@ export const actionLog = pgTable("action_log", {
   date: date("date").notNull(),
   target: text("target").notNull().default(""),
   action: text("action").notNull().default("买入"), // 买入 | 卖出
+  price: numeric("price", { precision: 15, scale: 4 }).default("0"),
+  quantity: numeric("quantity", { precision: 15, scale: 4 }).default("0"),
   note: text("note").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
