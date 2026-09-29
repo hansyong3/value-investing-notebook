@@ -548,26 +548,36 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
 
                   {/* Table */}
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-sm">
+                    <table className="w-full border-collapse text-sm min-w-[700px]">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-100">
-                          {["日期","标的","操作","价格","数量","备注",""].map((h, i) => (
-                            <th key={i} className={`text-left px-3 py-1.5 text-xs font-semibold text-gray-400 whitespace-nowrap ${i === 5 ? "w-full" : ""}`}>{h}</th>
-                          ))}
+                          <th className="text-left px-3 py-1.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-32">日期</th>
+                          <th className="text-left px-3 py-1.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-24">标的</th>
+                          <th className="text-left px-3 py-1.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-16">操作</th>
+                          <th className="text-left px-3 py-1.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-24">价格</th>
+                          <th className="text-left px-3 py-1.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-20">数量</th>
+                          <th className="text-left px-3 py-1.5 text-xs font-semibold text-gray-400 whitespace-nowrap w-28">总额</th>
+                          <th className="text-left px-3 py-1.5 text-xs font-semibold text-gray-400 w-full">备注</th>
+                          <th className="px-3 py-1.5 w-6"></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rows.map(row => (
+                        {rows.map(row => {
+                          const price = parseFloat(getActionVal(row, "price") || "0");
+                          const qty = parseFloat(getActionVal(row, "quantity") || "0");
+                          const total = isNaN(price * qty) ? 0 : price * qty;
+                          const totalStr = total > 0 ? total.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : "—";
+                          return (
                           <tr key={row.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 group">
                             <td className={cellCls}>
                               <input type="date" value={getActionVal(row, "date")}
                                 onChange={e => patchActionRow(row.id, "date", e.target.value)}
-                                className="text-xs text-gray-400 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none" />
+                                className="text-xs text-gray-500 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none w-full" />
                             </td>
                             <td className={cellCls}>
                               <input type="text" value={getActionVal(row, "target")} placeholder="标的"
                                 onChange={e => patchActionRow(row.id, "target", e.target.value)}
-                                className={inputCls} />
+                                className="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none text-sm text-gray-700 transition-colors" />
                             </td>
                             <td className={cellCls}>
                               <button
@@ -579,28 +589,32 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                             <td className={cellCls}>
                               <input type="number" value={getActionVal(row, "price")} placeholder="0"
                                 onChange={e => patchActionRow(row.id, "price", e.target.value)}
-                                className={`${inputCls} w-20`} />
+                                className="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none text-sm text-gray-700 transition-colors" />
                             </td>
                             <td className={cellCls}>
                               <input type="number" value={getActionVal(row, "quantity")} placeholder="0"
                                 onChange={e => patchActionRow(row.id, "quantity", e.target.value)}
-                                className={`${inputCls} w-20`} />
+                                className="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none text-sm text-gray-700 transition-colors" />
+                            </td>
+                            <td className={cellCls}>
+                              <span className="text-sm text-gray-500 whitespace-nowrap">{totalStr}</span>
+                              {actionSaving.has(row.id) && <span className="text-xs text-gray-300 ml-1">·</span>}
                             </td>
                             <td className={cellCls}>
                               <input type="text" value={getActionVal(row, "note")} placeholder="备注..."
                                 onChange={e => patchActionRow(row.id, "note", e.target.value)}
-                                className={inputCls} />
-                              {actionSaving.has(row.id) && <span className="text-xs text-gray-300 ml-1">保存中</span>}
+                                className="w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none text-sm text-gray-700 transition-colors" />
                             </td>
                             <td className={cellCls}>
                               <button onClick={() => deleteActionRow(row.id)}
                                 className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-sm">✕</button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
 
                         {rows.length === 0 && (
-                          <tr><td colSpan={7} className="text-center text-xs text-gray-300 py-4">暂无记录，点击「+ 添加行」</td></tr>
+                          <tr><td colSpan={8} className="text-center text-xs text-gray-300 py-4">暂无记录，点击「+ 添加行」</td></tr>
                         )}
                       </tbody>
                     </table>
