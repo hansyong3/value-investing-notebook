@@ -401,6 +401,9 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     ...(actionRows !== undefined ? [{ kind: "actionTable" as const, sortDate: actionTableDate, sortCa: actionTableDate }] : []),
   ];
   allItems.sort((a, b) => {
+    // Action table is always pinned to top
+    if (a.kind === "actionTable") return -1;
+    if (b.kind === "actionTable") return 1;
     const aStarred = a.kind === "note" && a.data.starred;
     const bStarred = b.kind === "note" && b.data.starred;
     if (aStarred !== bStarred) return aStarred ? -1 : 1;
@@ -431,7 +434,15 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors disabled:opacity-40">
               {exporting ? "生成中..." : "导出 PDF"}
             </button>
-<button onClick={addNewNote} disabled={adding}
+{actionRows !== undefined && (
+              <button
+                onClick={() => { const d = new Date().toISOString().split("T")[0]; setActionDraft({ date: d, target: "", action: "买入", price: "", quantity: "", note: "" }); listRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }}
+                disabled={actionDraft !== null}
+                className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
+                + 添加行动
+              </button>
+            )}
+            <button onClick={addNewNote} disabled={adding}
               className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
               {adding ? "创建中..." : "+ 添加笔记"}
             </button>
