@@ -411,11 +411,11 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                       return (
                         <span className="flex items-center gap-1">
                           <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                            <span className="text-gray-300 mr-0.5">当天:</span>{formatPrice(notePrice)}
+                            <span className="text-gray-400 mr-0.5">当天:</span>{formatPrice(notePrice)}
                           </span>
                           {pct !== null && (
                             <span className={`text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded ${pctColor}`}>
-                              <span className="text-gray-300 mr-0.5">至今:</span>{sign}{pct.toFixed(1)}%
+                              <span className="text-gray-400 mr-0.5">至今:</span>{sign}{pct.toFixed(1)}%
                             </span>
                           )}
                         </span>
