@@ -77,7 +77,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const [actionEditing, setActionEditing] = useState<Record<number, Partial<ActionRow>>>({});
   const actionSaveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const [actionSaving, setActionSaving] = useState<Set<number>>(new Set());
-  const [rowDraftByTable, setRowDraftByTable] = useState<Record<number, { date: string; target: string; action: string; price: string; quantity: string; note: string } | null>>({});
   const [addingRowTable, setAddingRowTable] = useState<number | null>(null);
   const [tableTitleEditing, setTableTitleEditing] = useState<Record<number, string>>({});
   const tableTitleTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -129,15 +128,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   }
 
   async function addActionRow(tableId: number) {
-    const draft = rowDraftByTable[tableId];
-    if (!draft) return;
+    if (addingRowTable === tableId) return;
     setAddingRowTable(tableId);
+    const d = new Date().toISOString().split("T")[0];
     await fetch("/api/action-log", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol, tableId, date: draft.date, target: draft.target, action: draft.action, price: draft.price || "0", quantity: draft.quantity || "0", note: draft.note }),
+      body: JSON.stringify({ symbol, tableId, date: d, target: "", action: "买入", price: "0", quantity: "0", note: "" }),
     });
-    setRowDraftByTable(d => ({ ...d, [tableId]: null }));
     setAddingRowTable(null);
     fetchActionData();
   }
@@ -156,10 +154,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
         return;
       }
       await fetchActionData();
-      if (newTable?.id) {
-        const d = new Date().toISOString().split("T")[0];
-        setRowDraftByTable(prev => ({ ...prev, [newTable.id]: { date: d, target: "", action: "买入", price: "", quantity: "", note: "" } }));
-      }
     } catch (e) {
       alert(`错误: ${e}`);
     } finally {
@@ -519,7 +513,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
             if (item.kind === "actionTable") {
               const tbl = item.data;
               const rows = [...(actionRowsByTable[tbl.id] ?? [])].sort((a, b) => b.date.localeCompare(a.date));
-              const draft = rowDraftByTable[tbl.id] ?? null;
               const cellCls = "px-3 py-1.5";
               const inputCls = "w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none text-sm text-gray-700 transition-colors";
               const cardDate = tbl.createdAt.split("T")[0];
@@ -540,10 +533,10 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => { const d = new Date().toISOString().split("T")[0]; setRowDraftByTable(prev => ({ ...prev, [tbl.id]: { date: d, target: "", action: "买入", price: "", quantity: "", note: "" } })); }}
-                        disabled={draft !== null}
+                        onClick={() => addActionRow(tbl.id)}
+                        disabled={addingRowTable === tbl.id}
                         className="text-xs text-green-600 hover:text-green-800 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded transition-colors disabled:opacity-40">
-                        + 添加行
+                        {addingRowTable === tbl.id ? "添加中..." : "+ 添加行"}
                       </button>
                       <button
                         onClick={() => deleteActionTable(tbl.id)}
@@ -564,52 +557,6 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                         </tr>
                       </thead>
                       <tbody>
-                        {draft && (
-                          <tr className="border-b border-green-50 bg-green-50/30">
-                            <td className={cellCls}>
-                              <input type="date" value={draft.date}
-                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, date: e.target.value } : null }))}
-                                className="text-xs text-gray-500 bg-transparent border-b border-gray-200 focus:border-blue-400 focus:outline-none" />
-                            </td>
-                            <td className={cellCls}>
-                              <input type="text" value={draft.target} placeholder="AAPL" autoFocus
-                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, target: e.target.value } : null }))}
-                                className={inputCls} />
-                            </td>
-                            <td className={cellCls}>
-                              <button
-                                onClick={() => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, action: prev[tbl.id]!.action === "买入" ? "卖出" : "买入" } : null }))}
-                                className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${draft.action === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                                {draft.action}
-                              </button>
-                            </td>
-                            <td className={cellCls}>
-                              <input type="number" value={draft.price} placeholder="0"
-                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, price: e.target.value } : null }))}
-                                className={`${inputCls} w-20`} />
-                            </td>
-                            <td className={cellCls}>
-                              <input type="number" value={draft.quantity} placeholder="0"
-                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, quantity: e.target.value } : null }))}
-                                className={`${inputCls} w-20`} />
-                            </td>
-                            <td className={cellCls}>
-                              <input type="text" value={draft.note} placeholder="备注..."
-                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, note: e.target.value } : null }))}
-                                onKeyDown={e => { if (e.key === "Enter") addActionRow(tbl.id); }}
-                                className={inputCls} />
-                            </td>
-                            <td className={`${cellCls} whitespace-nowrap`}>
-                              <button onClick={() => addActionRow(tbl.id)} disabled={addingRowTable === tbl.id}
-                                className="text-xs bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white px-2 py-0.5 rounded mr-1">
-                                {addingRowTable === tbl.id ? "…" : "保存"}
-                              </button>
-                              <button onClick={() => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: null }))}
-                                className="text-xs text-gray-400 hover:text-gray-600">取消</button>
-                            </td>
-                          </tr>
-                        )}
-
                         {rows.map(row => (
                           <tr key={row.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 group">
                             <td className={cellCls}>
@@ -652,7 +599,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                           </tr>
                         ))}
 
-                        {rows.length === 0 && !draft && (
+                        {rows.length === 0 && (
                           <tr><td colSpan={7} className="text-center text-xs text-gray-300 py-4">暂无记录，点击「+ 添加行」</td></tr>
                         )}
                       </tbody>
