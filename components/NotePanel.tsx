@@ -65,6 +65,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [adding, setAdding] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [creatingTable, setCreatingTable] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -142,16 +143,27 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   }
 
   async function createActionTable() {
-    const res = await fetch("/api/action-tables", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol, title: "行动记录" }),
-    });
-    const newTable = await res.json();
-    await fetchActionData();
-    if (newTable?.id) {
-      const d = new Date().toISOString().split("T")[0];
-      setRowDraftByTable(prev => ({ ...prev, [newTable.id]: { date: d, target: "", action: "买入", price: "", quantity: "", note: "" } }));
+    setCreatingTable(true);
+    try {
+      const res = await fetch("/api/action-tables", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol, title: "行动记录" }),
+      });
+      const newTable = await res.json();
+      if (!res.ok) {
+        alert(`创建失败: ${JSON.stringify(newTable)}`);
+        return;
+      }
+      await fetchActionData();
+      if (newTable?.id) {
+        const d = new Date().toISOString().split("T")[0];
+        setRowDraftByTable(prev => ({ ...prev, [newTable.id]: { date: d, target: "", action: "买入", price: "", quantity: "", note: "" } }));
+      }
+    } catch (e) {
+      alert(`错误: ${e}`);
+    } finally {
+      setCreatingTable(false);
     }
   }
 
@@ -481,8 +493,9 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
 {isNotebook && (
               <button
                 onClick={createActionTable}
-                className="bg-green-600 hover:bg-green-500 text-white text-sm px-3 py-1.5 rounded transition-colors">
-                + 添加行动
+                disabled={creatingTable}
+                className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded transition-colors">
+                {creatingTable ? "创建中..." : "+ 添加行动"}
               </button>
             )}
             <button onClick={addNewNote} disabled={adding}
