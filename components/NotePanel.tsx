@@ -402,12 +402,24 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                       className={`text-xs border-none bg-transparent focus:outline-none cursor-pointer ${hl ? "text-blue-500" : "text-gray-400"}`}
                     />
                     {(() => {
-                      const p = priceOnDate(bars, note.date);
-                      return p !== null ? (
-                        <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                          {formatPrice(p)}
+                      const notePrice = priceOnDate(bars, note.date);
+                      const currentPrice = bars.length > 0 ? bars[bars.length - 1].close : null;
+                      if (notePrice === null) return null;
+                      const pct = currentPrice !== null ? (currentPrice - notePrice) / notePrice * 100 : null;
+                      const sign = pct !== null && pct >= 0 ? "+" : "";
+                      const pctColor = pct === null ? "" : pct > 0 ? "text-green-600" : pct < 0 ? "text-red-500" : "text-gray-400";
+                      return (
+                        <span className="flex items-center gap-1">
+                          <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                            {formatPrice(notePrice)}
+                          </span>
+                          {pct !== null && (
+                            <span className={`text-xs font-mono ${pctColor}`}>
+                              {sign}{pct.toFixed(1)}%
+                            </span>
+                          )}
                         </span>
-                      ) : null;
+                      );
                     })()}
                   </div>
                   <div className="flex items-center gap-1.5 relative">
