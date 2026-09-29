@@ -147,9 +147,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ symbol, title: "行动记录" }),
     });
-    await fetchActionData();
     const newTable = await res.json();
-    // open draft immediately
+    await fetchActionData();
     if (newTable?.id) {
       const d = new Date().toISOString().split("T")[0];
       setRowDraftByTable(prev => ({ ...prev, [newTable.id]: { date: d, target: "", action: "买入", price: "", quantity: "", note: "" } }));
