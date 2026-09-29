@@ -12,7 +12,8 @@ type Notebook = { id: number; symbol: string; name: string };
 const CK_DEFAULT_BOOK_ID = 37; // Hans价值投资 in compound-knowledge
 
 type Bar = { time: string; close: number };
-type ActionRow = { id: number; date: string; target: string; action: string; price?: string; quantity?: string; note: string; createdAt?: string };
+type ActionTable = { id: number; title: string; createdAt: string };
+type ActionRow = { id: number; tableId: number | null; date: string; target: string; action: string; price?: string; quantity?: string; note: string; createdAt?: string };
 
 type Props = {
   symbol: string;
@@ -23,8 +24,7 @@ type Props = {
   notebooks?: Notebook[];
   centered?: boolean;
   bars?: Bar[];
-  actionRows?: ActionRow[];
-  onActionRowSaved?: () => void;
+  isNotebook?: boolean;
 };
 
 function parseContent(content: string) {
@@ -58,30 +58,53 @@ function formatPrice(price: number): string {
   return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
 }
 
-export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, notebooks = [], centered, bars = [], actionRows, onActionRowSaved }: Props) {
+export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, notebooks = [], centered, bars = [], isNotebook }: Props) {
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [bodies, setBodies] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [adding, setAdding] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [actionTableTitle, setActionTableTitle] = useState(() => {
-    try { return localStorage.getItem(`action-title-${symbol}`) ?? "行动记录"; } catch { return "行动记录"; }
-  });
   const listRef = useRef<HTMLDivElement>(null);
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const editingIds = useRef<Set<number>>(new Set());
 
-  // Action row state
+  // Action table state (only used when isNotebook)
+  const [actionTables, setActionTables] = useState<ActionTable[]>([]);
+  const [actionRowsByTable, setActionRowsByTable] = useState<Record<number, ActionRow[]>>({});
   const [actionEditing, setActionEditing] = useState<Record<number, Partial<ActionRow>>>({});
   const actionSaveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const [actionSaving, setActionSaving] = useState<Set<number>>(new Set());
-  const [actionDraft, setActionDraft] = useState<{ date: string; target: string; action: string; price: string; quantity: string; note: string } | null>(null);
-  const [addingAction, setAddingAction] = useState(false);
+  const [rowDraftByTable, setRowDraftByTable] = useState<Record<number, { date: string; target: string; action: string; price: string; quantity: string; note: string } | null>>({});
+  const [addingRowTable, setAddingRowTable] = useState<number | null>(null);
+  const [tableTitleEditing, setTableTitleEditing] = useState<Record<number, string>>({});
+  const tableTitleTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+
+  const fetchActionData = useCallback(async () => {
+    if (!isNotebook) return;
+    const [tRes, rRes] = await Promise.all([
+      fetch(`/api/action-tables?symbol=${encodeURIComponent(symbol)}`),
+      fetch(`/api/action-log?symbol=${encodeURIComponent(symbol)}`),
+    ]);
+    const tables = await tRes.json();
+    const rows = await rRes.json();
+    if (Array.isArray(tables)) setActionTables(tables);
+    if (Array.isArray(rows)) {
+      const map: Record<number, ActionRow[]> = {};
+      for (const r of rows) {
+        const key = r.tableId ?? -1;
+        if (!map[key]) map[key] = [];
+        map[key].push(r);
+      }
+      setActionRowsByTable(map);
+    }
+  }, [isNotebook, symbol]);
+
+  useEffect(() => { fetchActionData(); }, [fetchActionData]);
 
   function getActionVal(row: ActionRow, field: keyof ActionRow): string {
-    return (actionEditing[row.id]?.[field] as string | undefined) ?? (row[field] as string);
+    return (actionEditing[row.id]?.[field] as string | undefined) ?? (row[field] as string ?? "");
   }
 
   function patchActionRow(id: number, field: keyof ActionRow, value: string) {
@@ -95,35 +118,64 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
         body: JSON.stringify({ id, [field]: value }),
       });
       setActionSaving(s => { const n = new Set(s); n.delete(id); return n; });
-      onActionRowSaved?.();
     }, 800);
   }
 
   async function deleteActionRow(id: number) {
-    if (!confirm("删除这条行动记录？")) return;
+    if (!confirm("删除这条记录？")) return;
     await fetch(`/api/action-log?id=${id}`, { method: "DELETE" });
-    onActionRowSaved?.();
+    fetchActionData();
   }
 
-  async function addActionRow() {
-    if (!actionDraft) return;
-    setAddingAction(true);
+  async function addActionRow(tableId: number) {
+    const draft = rowDraftByTable[tableId];
+    if (!draft) return;
+    setAddingRowTable(tableId);
     await fetch("/api/action-log", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        symbol,
-        date: actionDraft.date,
-        target: actionDraft.target,
-        action: actionDraft.action,
-        price: actionDraft.price || "0",
-        quantity: actionDraft.quantity || "0",
-        note: actionDraft.note,
-      }),
+      body: JSON.stringify({ symbol, tableId, date: draft.date, target: draft.target, action: draft.action, price: draft.price || "0", quantity: draft.quantity || "0", note: draft.note }),
     });
-    setActionDraft(null);
-    setAddingAction(false);
-    onActionRowSaved?.();
+    setRowDraftByTable(d => ({ ...d, [tableId]: null }));
+    setAddingRowTable(null);
+    fetchActionData();
+  }
+
+  async function createActionTable() {
+    const res = await fetch("/api/action-tables", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, title: "行动记录" }),
+    });
+    await fetchActionData();
+    const newTable = await res.json();
+    // open draft immediately
+    if (newTable?.id) {
+      const d = new Date().toISOString().split("T")[0];
+      setRowDraftByTable(prev => ({ ...prev, [newTable.id]: { date: d, target: "", action: "买入", price: "", quantity: "", note: "" } }));
+    }
+  }
+
+  async function deleteActionTable(id: number) {
+    if (!confirm("删除整张行动记录表？内部所有记录也会删除。")) return;
+    await fetch(`/api/action-tables?id=${id}`, { method: "DELETE" });
+    fetchActionData();
+  }
+
+  function patchTableTitle(id: number, title: string) {
+    setTableTitleEditing(e => ({ ...e, [id]: title }));
+    clearTimeout(tableTitleTimers.current[id]);
+    tableTitleTimers.current[id] = setTimeout(async () => {
+      await fetch("/api/action-tables", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, title }),
+      });
+    }, 800);
+  }
+
+  function getTableTitle(t: ActionTable): string {
+    return tableTitleEditing[t.id] ?? t.title;
   }
 
   // Tags state
@@ -388,25 +440,15 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     });
   }
 
-  const today = new Date().toISOString().split("T")[0];
-
-  // The action table card sorts by the earliest row's createdAt date
-  const actionTableDate = actionRows && actionRows.length > 0
-    ? ([...actionRows].sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))[0].createdAt ?? today).split("T")[0]
-    : today;
-
   type Item =
     | { kind: "note"; data: Note; sortDate: string; sortCa: string }
-    | { kind: "actionTable"; sortDate: string; sortCa: string };
+    | { kind: "actionTable"; data: ActionTable; sortDate: string; sortCa: string };
 
   const allItems: Item[] = [
     ...notes.map(n => ({ kind: "note" as const, data: n, sortDate: n.date, sortCa: n.createdAt ?? "" })),
-    ...(actionRows !== undefined ? [{ kind: "actionTable" as const, sortDate: actionTableDate, sortCa: actionTableDate }] : []),
+    ...actionTables.map(t => ({ kind: "actionTable" as const, data: t, sortDate: t.createdAt.split("T")[0], sortCa: t.createdAt })),
   ];
   allItems.sort((a, b) => {
-    // Action table is always pinned to top
-    if (a.kind === "actionTable") return -1;
-    if (b.kind === "actionTable") return 1;
     const aStarred = a.kind === "note" && a.data.starred;
     const bStarred = b.kind === "note" && b.data.starred;
     if (aStarred !== bStarred) return aStarred ? -1 : 1;
@@ -437,11 +479,10 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors disabled:opacity-40">
               {exporting ? "生成中..." : "导出 PDF"}
             </button>
-{actionRows !== undefined && (
+{isNotebook && (
               <button
-                onClick={() => { const d = new Date().toISOString().split("T")[0]; setActionDraft({ date: d, target: "", action: "买入", price: "", quantity: "", note: "" }); listRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }}
-                disabled={actionDraft !== null}
-                className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
+                onClick={createActionTable}
+                className="bg-green-600 hover:bg-green-500 text-white text-sm px-3 py-1.5 rounded transition-colors">
                 + 添加行动
               </button>
             )}
@@ -457,40 +498,47 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       {/* Notes */}
       <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto py-4">
         <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-4"} space-y-4`}>
-          {allItems.length === 0 && !actionDraft && (
+          {allItems.length === 0 && (
             <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
           )}
 
           {allItems.map((item) => {
             // ── Action table card ──
             if (item.kind === "actionTable") {
-              const rows = [...(actionRows ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+              const tbl = item.data;
+              const rows = [...(actionRowsByTable[tbl.id] ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+              const draft = rowDraftByTable[tbl.id] ?? null;
               const cellCls = "px-3 py-1.5";
               const inputCls = "w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none text-sm text-gray-700 transition-colors";
+              const cardDate = tbl.createdAt.split("T")[0];
               return (
-                <div key="action-table" className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div key={`at-${tbl.id}`} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
                   {/* Card header */}
-                  <div className="flex items-center justify-between px-5 py-2 border-b border-gray-100 bg-gray-50">
+                  <div className="flex items-center justify-between px-5 py-2 border-b border-gray-100 bg-gray-50 group">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">{actionTableDate}</span>
+                      <span className="text-xs text-gray-400">{cardDate}</span>
                       <span className="text-gray-400 text-xs">📋</span>
                       <input
-                        value={actionTableTitle}
-                        onChange={e => {
-                          setActionTableTitle(e.target.value);
-                          try { localStorage.setItem(`action-title-${symbol}`, e.target.value); } catch { /* */ }
-                        }}
+                        value={getTableTitle(tbl)}
+                        onChange={e => patchTableTitle(tbl.id, e.target.value)}
                         placeholder="行动记录"
                         className="text-sm font-semibold text-gray-700 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-400 focus:outline-none w-40"
                       />
                       <span className="text-xs text-gray-300">({rows.length} 条)</span>
                     </div>
-                    <button
-                      onClick={() => { const d = new Date().toISOString().split("T")[0]; setActionDraft({ date: d, target: "", action: "买入", price: "", quantity: "", note: "" }); }}
-                      disabled={actionDraft !== null}
-                      className="text-xs text-green-600 hover:text-green-800 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded transition-colors disabled:opacity-40">
-                      + 添加行
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { const d = new Date().toISOString().split("T")[0]; setRowDraftByTable(prev => ({ ...prev, [tbl.id]: { date: d, target: "", action: "买入", price: "", quantity: "", note: "" } })); }}
+                        disabled={draft !== null}
+                        className="text-xs text-green-600 hover:text-green-800 border border-green-200 hover:border-green-400 px-2.5 py-1 rounded transition-colors disabled:opacity-40">
+                        + 添加行
+                      </button>
+                      <button
+                        onClick={() => deleteActionTable(tbl.id)}
+                        className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-xs">
+                        删除表
+                      </button>
+                    </div>
                   </div>
 
                   {/* Table */}
@@ -504,48 +552,47 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                         </tr>
                       </thead>
                       <tbody>
-                        {/* Draft row */}
-                        {actionDraft && (
+                        {draft && (
                           <tr className="border-b border-green-50 bg-green-50/30">
                             <td className={cellCls}>
-                              <input type="date" value={actionDraft.date}
-                                onChange={e => setActionDraft(d => d ? { ...d, date: e.target.value } : d)}
+                              <input type="date" value={draft.date}
+                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, date: e.target.value } : null }))}
                                 className="text-xs text-gray-500 bg-transparent border-b border-gray-200 focus:border-blue-400 focus:outline-none" />
                             </td>
                             <td className={cellCls}>
-                              <input type="text" value={actionDraft.target} placeholder="AAPL"
-                                onChange={e => setActionDraft(d => d ? { ...d, target: e.target.value } : d)}
-                                className={inputCls} autoFocus />
+                              <input type="text" value={draft.target} placeholder="AAPL" autoFocus
+                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, target: e.target.value } : null }))}
+                                className={inputCls} />
                             </td>
                             <td className={cellCls}>
                               <button
-                                onClick={() => setActionDraft(d => d ? { ...d, action: d.action === "买入" ? "卖出" : "买入" } : d)}
-                                className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${actionDraft.action === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                                {actionDraft.action}
+                                onClick={() => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, action: prev[tbl.id]!.action === "买入" ? "卖出" : "买入" } : null }))}
+                                className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${draft.action === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                                {draft.action}
                               </button>
                             </td>
                             <td className={cellCls}>
-                              <input type="number" value={actionDraft.price} placeholder="0"
-                                onChange={e => setActionDraft(d => d ? { ...d, price: e.target.value } : d)}
+                              <input type="number" value={draft.price} placeholder="0"
+                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, price: e.target.value } : null }))}
                                 className={`${inputCls} w-20`} />
                             </td>
                             <td className={cellCls}>
-                              <input type="number" value={actionDraft.quantity} placeholder="0"
-                                onChange={e => setActionDraft(d => d ? { ...d, quantity: e.target.value } : d)}
+                              <input type="number" value={draft.quantity} placeholder="0"
+                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, quantity: e.target.value } : null }))}
                                 className={`${inputCls} w-20`} />
                             </td>
                             <td className={cellCls}>
-                              <input type="text" value={actionDraft.note} placeholder="备注..."
-                                onChange={e => setActionDraft(d => d ? { ...d, note: e.target.value } : d)}
-                                onKeyDown={e => { if (e.key === "Enter") addActionRow(); }}
+                              <input type="text" value={draft.note} placeholder="备注..."
+                                onChange={e => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: prev[tbl.id] ? { ...prev[tbl.id]!, note: e.target.value } : null }))}
+                                onKeyDown={e => { if (e.key === "Enter") addActionRow(tbl.id); }}
                                 className={inputCls} />
                             </td>
                             <td className={`${cellCls} whitespace-nowrap`}>
-                              <button onClick={addActionRow} disabled={addingAction}
+                              <button onClick={() => addActionRow(tbl.id)} disabled={addingRowTable === tbl.id}
                                 className="text-xs bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white px-2 py-0.5 rounded mr-1">
-                                {addingAction ? "…" : "保存"}
+                                {addingRowTable === tbl.id ? "…" : "保存"}
                               </button>
-                              <button onClick={() => setActionDraft(null)}
+                              <button onClick={() => setRowDraftByTable(prev => ({ ...prev, [tbl.id]: null }))}
                                 className="text-xs text-gray-400 hover:text-gray-600">取消</button>
                             </td>
                           </tr>
@@ -571,12 +618,12 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                               </button>
                             </td>
                             <td className={cellCls}>
-                              <input type="number" value={getActionVal(row, "price") ?? ""} placeholder="0"
+                              <input type="number" value={getActionVal(row, "price")} placeholder="0"
                                 onChange={e => patchActionRow(row.id, "price", e.target.value)}
                                 className={`${inputCls} w-20`} />
                             </td>
                             <td className={cellCls}>
-                              <input type="number" value={getActionVal(row, "quantity") ?? ""} placeholder="0"
+                              <input type="number" value={getActionVal(row, "quantity")} placeholder="0"
                                 onChange={e => patchActionRow(row.id, "quantity", e.target.value)}
                                 className={`${inputCls} w-20`} />
                             </td>
@@ -593,8 +640,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                           </tr>
                         ))}
 
-                        {rows.length === 0 && !actionDraft && (
-                          <tr><td colSpan={7} className="text-center text-xs text-gray-300 py-4">暂无记录，点击「+ 添加行」开始</td></tr>
+                        {rows.length === 0 && !draft && (
+                          <tr><td colSpan={7} className="text-center text-xs text-gray-300 py-4">暂无记录，点击「+ 添加行」</td></tr>
                         )}
                       </tbody>
                     </table>

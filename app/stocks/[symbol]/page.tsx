@@ -110,9 +110,6 @@ export default function StockPage() {
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(false);
 
-  type ActionRow = { id: number; date: string; target: string; action: string; note: string; createdAt?: string };
-  const [actionRows, setActionRows] = useState<ActionRow[]>([]);
-
   // Add stock inline
   const [addingStock, setAddingStock] = useState(false);
   const [newSymbol, setNewSymbol] = useState("");
@@ -162,12 +159,6 @@ export default function StockPage() {
     if (Array.isArray(data)) setHoldingsList(data);
   }, [decodedSymbol]);
 
-  const fetchActionLog = useCallback(async () => {
-    const res = await fetch(`/api/action-log?symbol=${decodedSymbol}`);
-    const data = await res.json();
-    if (Array.isArray(data)) setActionRows(data);
-  }, [decodedSymbol]);
-
   const fetchWealthTargets = useCallback(async () => {
     try {
       const stockName = stocks.find(s => s.symbol === decodedSymbol)?.name ?? '';
@@ -177,7 +168,7 @@ export default function StockPage() {
   }, [decodedSymbol, stocks]);
 
   useEffect(() => { fetchStocks(); }, [fetchStocks]);
-  useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); fetchActionLog(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets, fetchActionLog]);
+  useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets]);
 
   async function handleDrop(targetId: number) {
     if (dragId === null || dragId === targetId) return;
@@ -398,7 +389,7 @@ export default function StockPage() {
       {stocks.find(s => s.symbol === decodedSymbol)?.notebook ? (
         /* NOTEBOOK: unified notes + action rows */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
-          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} actionRows={actionRows} onActionRowSaved={fetchActionLog} />
+          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} isNotebook={true} />
         </div>
       ) : (
         <div ref={containerRef} className="flex flex-1 overflow-hidden min-h-0">
