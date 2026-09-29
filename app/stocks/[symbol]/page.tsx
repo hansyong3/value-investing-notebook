@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import NotePanel from "@/components/NotePanel";
 import HoldingsPanel from "@/components/HoldingsPanel";
 import DiaryCard from "@/components/DiaryCard";
+import ActionLogPanel from "@/components/ActionLogPanel";
 
 const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false });
 
@@ -109,6 +110,7 @@ export default function StockPage() {
   const [range, setRange] = useState("2y");
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(false);
+  const [notebookTab, setNotebookTab] = useState<"notes" | "actions">("notes");
 
   // Add stock inline
   const [addingStock, setAddingStock] = useState(false);
@@ -387,9 +389,26 @@ export default function StockPage() {
       </aside>
 
       {stocks.find(s => s.symbol === decodedSymbol)?.notebook ? (
-        /* NOTES: full-width notes only, no chart */
+        /* NOTEBOOK: tab bar + NotePanel or ActionLogPanel */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
-          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} />
+          {/* Tab bar */}
+          <div className="flex-shrink-0 border-b border-gray-200 bg-white px-6 flex items-center gap-0">
+            <button
+              onClick={() => setNotebookTab("notes")}
+              className={`text-sm px-4 py-2.5 border-b-2 transition-colors ${notebookTab === "notes" ? "border-blue-500 text-blue-600 font-medium" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
+              文字笔记
+            </button>
+            <button
+              onClick={() => setNotebookTab("actions")}
+              className={`text-sm px-4 py-2.5 border-b-2 transition-colors ${notebookTab === "actions" ? "border-blue-500 text-blue-600 font-medium" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
+              行动记录
+            </button>
+          </div>
+          {notebookTab === "notes" ? (
+            <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} />
+          ) : (
+            <ActionLogPanel symbol={decodedSymbol} />
+          )}
         </div>
       ) : (
         <div ref={containerRef} className="flex flex-1 overflow-hidden min-h-0">
