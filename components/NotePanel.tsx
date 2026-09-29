@@ -65,6 +65,9 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [adding, setAdding] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [actionTableTitle, setActionTableTitle] = useState(() => {
+    try { return localStorage.getItem(`action-title-${symbol}`) ?? "行动记录"; } catch { return "行动记录"; }
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -470,7 +473,16 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                   <div className="flex items-center justify-between px-5 py-2 border-b border-gray-100 bg-gray-50">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-400">{actionTableDate}</span>
-                      <span className="text-xs font-semibold text-gray-600">📋 行动记录</span>
+                      <span className="text-gray-400 text-xs">📋</span>
+                      <input
+                        value={actionTableTitle}
+                        onChange={e => {
+                          setActionTableTitle(e.target.value);
+                          try { localStorage.setItem(`action-title-${symbol}`, e.target.value); } catch { /* */ }
+                        }}
+                        placeholder="行动记录"
+                        className="text-sm font-semibold text-gray-700 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-400 focus:outline-none w-40"
+                      />
                       <span className="text-xs text-gray-300">({rows.length} 条)</span>
                     </div>
                     <button
