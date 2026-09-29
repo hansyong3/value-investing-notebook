@@ -39,9 +39,17 @@ export const noteTags = pgTable("note_tags", {
   tagId: integer("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
 });
 
+export const actionTables = pgTable("action_tables", {
+  id: serial("id").primaryKey(),
+  stockId: integer("stock_id").notNull().references(() => stocks.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default("行动记录"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const actionLog = pgTable("action_log", {
   id: serial("id").primaryKey(),
   stockId: integer("stock_id").notNull().references(() => stocks.id, { onDelete: "cascade" }),
+  tableId: integer("table_id").references(() => actionTables.id, { onDelete: "cascade" }),
   date: date("date").notNull(),
   target: text("target").notNull().default(""),
   action: text("action").notNull().default("买入"), // 买入 | 卖出
