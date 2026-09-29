@@ -11,6 +11,8 @@ type Tag = { id: number; name: string; color: string };
 type Notebook = { id: number; symbol: string; name: string };
 const CK_DEFAULT_BOOK_ID = 37; // Hans价值投资 in compound-knowledge
 
+type Bar = { time: string; close: number };
+
 type Props = {
   symbol: string;
   notes: Note[];
@@ -19,6 +21,7 @@ type Props = {
   onExportPdf: () => Promise<void>;
   notebooks?: Notebook[];
   centered?: boolean;
+  bars?: Bar[];
 };
 
 function parseContent(content: string) {
@@ -33,7 +36,26 @@ function stripHtml(html: string) {
 
 const TAG_COLORS = ["#3b82f6","#22c55e","#ef4444","#f97316","#eab308","#8b5cf6","#ec4899","#6b7280"];
 
-export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, notebooks = [], centered }: Props) {
+// Find the closing price on or before a given date from sorted bars
+function priceOnDate(bars: Bar[], date: string): number | null {
+  if (!bars.length) return null;
+  // bars are sorted by time ascending; find last bar with time <= date
+  let lo = 0, hi = bars.length - 1, result = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (bars[mid].time <= date) { result = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return result >= 0 ? bars[result].close : null;
+}
+
+function formatPrice(price: number): string {
+  if (price >= 1000) return price.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  if (price >= 10) return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+}
+
+export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, notebooks = [], centered, bars = [] }: Props) {
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [bodies, setBodies] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
@@ -379,6 +401,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                       }}
                       className={`text-xs border-none bg-transparent focus:outline-none cursor-pointer ${hl ? "text-blue-500" : "text-gray-400"}`}
                     />
+                    {(() => {
+                      const p = priceOnDate(bars, note.date);
+                      return p !== null ? (
+                        <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                          {formatPrice(p)}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="flex items-center gap-1.5 relative">
                     {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
