@@ -6,7 +6,6 @@ import dynamic from "next/dynamic";
 import NotePanel from "@/components/NotePanel";
 import HoldingsPanel from "@/components/HoldingsPanel";
 import DiaryCard from "@/components/DiaryCard";
-import ActionLogPanel from "@/components/ActionLogPanel";
 
 const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false });
 
@@ -110,7 +109,9 @@ export default function StockPage() {
   const [range, setRange] = useState("2y");
   const [chartLoading, setChartLoading] = useState(true);
   const [chartError, setChartError] = useState(false);
-  const [notebookTab, setNotebookTab] = useState<"notes" | "actions">("notes");
+
+  type ActionRow = { id: number; date: string; target: string; action: string; note: string; createdAt?: string };
+  const [actionRows, setActionRows] = useState<ActionRow[]>([]);
 
   // Add stock inline
   const [addingStock, setAddingStock] = useState(false);
@@ -161,6 +162,12 @@ export default function StockPage() {
     if (Array.isArray(data)) setHoldingsList(data);
   }, [decodedSymbol]);
 
+  const fetchActionLog = useCallback(async () => {
+    const res = await fetch(`/api/action-log?symbol=${decodedSymbol}`);
+    const data = await res.json();
+    if (Array.isArray(data)) setActionRows(data);
+  }, [decodedSymbol]);
+
   const fetchWealthTargets = useCallback(async () => {
     try {
       const stockName = stocks.find(s => s.symbol === decodedSymbol)?.name ?? '';
@@ -170,7 +177,7 @@ export default function StockPage() {
   }, [decodedSymbol, stocks]);
 
   useEffect(() => { fetchStocks(); }, [fetchStocks]);
-  useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets]);
+  useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); fetchActionLog(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets, fetchActionLog]);
 
   async function handleDrop(targetId: number) {
     if (dragId === null || dragId === targetId) return;
@@ -389,26 +396,9 @@ export default function StockPage() {
       </aside>
 
       {stocks.find(s => s.symbol === decodedSymbol)?.notebook ? (
-        /* NOTEBOOK: tab bar + NotePanel or ActionLogPanel */
+        /* NOTEBOOK: unified notes + action rows */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
-          {/* Tab bar */}
-          <div className="flex-shrink-0 border-b border-gray-200 bg-white px-6 flex items-center gap-0">
-            <button
-              onClick={() => setNotebookTab("notes")}
-              className={`text-sm px-4 py-2.5 border-b-2 transition-colors ${notebookTab === "notes" ? "border-blue-500 text-blue-600 font-medium" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
-              文字笔记
-            </button>
-            <button
-              onClick={() => setNotebookTab("actions")}
-              className={`text-sm px-4 py-2.5 border-b-2 transition-colors ${notebookTab === "actions" ? "border-blue-500 text-blue-600 font-medium" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
-              行动记录
-            </button>
-          </div>
-          {notebookTab === "notes" ? (
-            <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} />
-          ) : (
-            <ActionLogPanel symbol={decodedSymbol} />
-          )}
+          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} actionRows={actionRows} onActionRowSaved={fetchActionLog} />
         </div>
       ) : (
         <div ref={containerRef} className="flex flex-1 overflow-hidden min-h-0">

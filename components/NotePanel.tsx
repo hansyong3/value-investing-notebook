@@ -12,6 +12,7 @@ type Notebook = { id: number; symbol: string; name: string };
 const CK_DEFAULT_BOOK_ID = 37; // Hans价值投资 in compound-knowledge
 
 type Bar = { time: string; close: number };
+type ActionRow = { id: number; date: string; target: string; action: string; note: string; createdAt?: string };
 
 type Props = {
   symbol: string;
@@ -22,6 +23,8 @@ type Props = {
   notebooks?: Notebook[];
   centered?: boolean;
   bars?: Bar[];
+  actionRows?: ActionRow[];
+  onActionRowSaved?: () => void;
 };
 
 function parseContent(content: string) {
@@ -55,7 +58,7 @@ function formatPrice(price: number): string {
   return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
 }
 
-export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, notebooks = [], centered, bars = [] }: Props) {
+export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, notebooks = [], centered, bars = [], actionRows, onActionRowSaved }: Props) {
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [bodies, setBodies] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
@@ -66,6 +69,51 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const editingIds = useRef<Set<number>>(new Set());
+
+  // Action row state
+  const [actionEditing, setActionEditing] = useState<Record<number, Partial<ActionRow>>>({});
+  const actionSaveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const [actionSaving, setActionSaving] = useState<Set<number>>(new Set());
+  const [actionDraft, setActionDraft] = useState<{ date: string; target: string; action: string; note: string } | null>(null);
+  const [addingAction, setAddingAction] = useState(false);
+
+  function getActionVal(row: ActionRow, field: keyof ActionRow): string {
+    return (actionEditing[row.id]?.[field] as string | undefined) ?? (row[field] as string);
+  }
+
+  function patchActionRow(id: number, field: keyof ActionRow, value: string) {
+    setActionEditing(e => ({ ...e, [id]: { ...(e[id] ?? {}), [field]: value } }));
+    clearTimeout(actionSaveTimers.current[id]);
+    setActionSaving(s => new Set(s).add(id));
+    actionSaveTimers.current[id] = setTimeout(async () => {
+      await fetch("/api/action-log", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, [field]: value }),
+      });
+      setActionSaving(s => { const n = new Set(s); n.delete(id); return n; });
+      onActionRowSaved?.();
+    }, 800);
+  }
+
+  async function deleteActionRow(id: number) {
+    if (!confirm("删除这条行动记录？")) return;
+    await fetch(`/api/action-log?id=${id}`, { method: "DELETE" });
+    onActionRowSaved?.();
+  }
+
+  async function addActionRow() {
+    if (!actionDraft) return;
+    setAddingAction(true);
+    await fetch("/api/action-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, ...actionDraft }),
+    });
+    setActionDraft(null);
+    setAddingAction(false);
+    onActionRowSaved?.();
+  }
 
   // Tags state
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -329,10 +377,22 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     });
   }
 
-  const sorted = [...notes].sort((a, b) => {
-    if (a.starred !== b.starred) return a.starred ? -1 : 1;
-    if (a.date !== b.date) return b.date.localeCompare(a.date);
-    return b.id - a.id;
+  type Item =
+    | { kind: "note"; data: Note }
+    | { kind: "action"; data: ActionRow };
+
+  const allItems: Item[] = [
+    ...notes.map(n => ({ kind: "note" as const, data: n })),
+    ...(actionRows ?? []).map(r => ({ kind: "action" as const, data: r })),
+  ];
+  allItems.sort((a, b) => {
+    const aStarred = a.kind === "note" && a.data.starred;
+    const bStarred = b.kind === "note" && b.data.starred;
+    if (aStarred !== bStarred) return aStarred ? -1 : 1;
+    if (a.data.date !== b.data.date) return b.data.date.localeCompare(a.data.date);
+    const caA = (a.data as { createdAt?: string }).createdAt ?? "";
+    const caB = (b.data as { createdAt?: string }).createdAt ?? "";
+    return caB.localeCompare(caA);
   });
 
   return (
@@ -341,7 +401,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       <div className="border-b border-gray-200 bg-white flex-shrink-0">
         <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-4"} py-2 flex items-center justify-between`}>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length})</span></span>
+            <span className="text-sm text-gray-500">研究笔记 <span className="text-gray-300">({notes.length}{actionRows ? ` + ${actionRows.length} 行动` : ""})</span></span>
             <button onClick={collapseAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部收起</button>
             <button onClick={expandAll} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1 rounded transition-colors">全部展开</button>
           </div>
@@ -358,6 +418,14 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
               className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors disabled:opacity-40">
               {exporting ? "生成中..." : "导出 PDF"}
             </button>
+            {actionRows !== undefined && (
+              <button
+                onClick={() => { const d = new Date().toISOString().split("T")[0]; setActionDraft({ date: d, target: "", action: "买入", note: "" }); listRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }}
+                disabled={actionDraft !== null}
+                className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
+                + 添加行动
+              </button>
+            )}
             <button onClick={addNewNote} disabled={adding}
               className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm px-3 py-1.5 rounded transition-colors">
               {adding ? "创建中..." : "+ 添加笔记"}
@@ -370,11 +438,73 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       {/* Notes */}
       <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto py-4">
         <div className={`${centered ? "max-w-6xl mx-auto px-8" : "px-4"} space-y-4`}>
-          {sorted.length === 0 && (
+          {allItems.length === 0 && !actionDraft && (
             <p className="text-gray-400 text-sm text-center mt-10">还没有笔记，点击「添加笔记」开始记录</p>
           )}
 
-          {sorted.map((note) => {
+          {/* Action draft card */}
+          {actionDraft && (
+            <div className="rounded-xl border border-green-300 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
+                <input type="date" value={actionDraft.date}
+                  onChange={e => setActionDraft(d => d ? { ...d, date: e.target.value } : d)}
+                  className="text-xs text-gray-400 border-none bg-transparent focus:outline-none" />
+                <input type="text" value={actionDraft.target} placeholder="标的 (如 AAPL)"
+                  onChange={e => setActionDraft(d => d ? { ...d, target: e.target.value } : d)}
+                  className="text-sm font-medium text-gray-700 w-28 bg-transparent border-b border-gray-200 focus:border-blue-400 focus:outline-none" />
+                <button
+                  onClick={() => setActionDraft(d => d ? { ...d, action: d.action === "买入" ? "卖出" : "买入" } : d)}
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${actionDraft.action === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                  {actionDraft.action}
+                </button>
+                <input type="text" value={actionDraft.note} placeholder="备注..."
+                  onChange={e => setActionDraft(d => d ? { ...d, note: e.target.value } : d)}
+                  onKeyDown={e => { if (e.key === "Enter") addActionRow(); }}
+                  className="flex-1 text-sm text-gray-500 bg-transparent border-b border-gray-200 focus:border-blue-400 focus:outline-none min-w-0" />
+                <button onClick={addActionRow} disabled={addingAction}
+                  className="text-xs bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white px-2.5 py-1 rounded transition-colors flex-shrink-0">
+                  {addingAction ? "…" : "保存"}
+                </button>
+                <button onClick={() => setActionDraft(null)}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-1 transition-colors flex-shrink-0">取消</button>
+              </div>
+            </div>
+          )}
+
+          {allItems.map((item) => {
+            // ── Action row card ──
+            if (item.kind === "action") {
+              const row = item.data;
+              const act = getActionVal(row, "action");
+              return (
+                <div key={`action-${row.id}`}
+                  className={`rounded-xl border bg-white shadow-sm overflow-hidden ${act === "买入" ? "border-l-4 border-l-green-400" : "border-l-4 border-l-red-400"}`}>
+                  <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap group">
+                    <input type="date" value={getActionVal(row, "date")}
+                      onChange={e => patchActionRow(row.id, "date", e.target.value)}
+                      className="text-xs text-gray-400 border-none bg-transparent focus:outline-none" />
+                    <span className="text-gray-300 text-xs">📋</span>
+                    <input type="text" value={getActionVal(row, "target")} placeholder="标的"
+                      onChange={e => patchActionRow(row.id, "target", e.target.value)}
+                      className="text-sm font-semibold text-gray-700 w-24 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none" />
+                    <button
+                      onClick={() => patchActionRow(row.id, "action", act === "买入" ? "卖出" : "买入")}
+                      className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${act === "买入" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                      {act}
+                    </button>
+                    <input type="text" value={getActionVal(row, "note")} placeholder="备注..."
+                      onChange={e => patchActionRow(row.id, "note", e.target.value)}
+                      className="flex-1 text-sm text-gray-500 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none min-w-0" />
+                    {actionSaving.has(row.id) && <span className="text-xs text-gray-300 flex-shrink-0">保存中</span>}
+                    <button onClick={() => deleteActionRow(row.id)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-sm flex-shrink-0">✕</button>
+                  </div>
+                </div>
+              );
+            }
+
+            // ── Text note card ──
+            const note = item.data;
             const isOpen = !!expanded[note.id];
             const hl = isHighlighted(note);
             const bodyText = stripHtml(bodies[note.id] ?? note.content);
