@@ -48,6 +48,7 @@ export default function DiaryCard() {
   const [addingPostscript, setAddingPostscript] = useState(false);
   const [psText, setPsText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [diarySymbol, setDiarySymbol] = useState("");
   const queueRef = useRef<Note[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const psRef = useRef<HTMLTextAreaElement>(null);
@@ -72,6 +73,7 @@ export default function DiaryCard() {
           stocks.find(s => s.notebook);
 
         if (!diaryStock) return;
+        setDiarySymbol(diaryStock.symbol);
 
         const notesRes = await fetch(`/api/notes?symbol=${encodeURIComponent(diaryStock.symbol)}`);
         const data: Note[] = await notesRes.json();
@@ -122,9 +124,9 @@ export default function DiaryCard() {
     const appended = `${current.content}\n---\n附言（${today}）\n${psText.trim()}`;
     try {
       const res = await fetch("/api/notes", {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: current.id, content: appended }),
+        body: JSON.stringify({ symbol: diarySymbol, id: current.id, content: appended }),
       });
       if (res.ok) {
         const newNote: Note = { ...current, content: appended };
