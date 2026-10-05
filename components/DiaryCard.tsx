@@ -188,12 +188,12 @@ export default function DiaryCard() {
           const psDate = match?.[1] ?? "";
           const psBody = match?.[2]?.trim() ?? ps;
           return (
-            <div key={i} className="mt-4 pt-3 border-t border-dashed border-amber-200">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-xs text-amber-500 font-medium">附言</span>
-                {psDate && <span className="text-xs text-gray-400">{psDate}</span>}
+            <div key={i} className="mt-6 pt-4 border-t border-dashed border-amber-200">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="text-xs text-amber-600 font-semibold">附言</span>
+                {psDate && <span className="text-xs text-amber-400">{psDate}</span>}
               </div>
-              <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-wrap">{psBody}</p>
+              <p className="text-sm text-amber-800 leading-relaxed whitespace-pre-wrap">{psBody}</p>
             </div>
           );
         })}
