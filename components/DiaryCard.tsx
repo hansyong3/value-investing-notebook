@@ -51,6 +51,7 @@ export default function DiaryCard() {
   const queueRef = useRef<Note[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const psRef = useRef<HTMLTextAreaElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   function nextFromQueue(pool: Note[]) {
     if (!pool.length) return null;
@@ -126,13 +127,23 @@ export default function DiaryCard() {
         body: JSON.stringify({ id: current.id, content: appended }),
       });
       if (res.ok) {
-        const updated = await res.json();
-        const newNote = { ...current, content: updated.content ?? appended };
+        const newNote: Note = { ...current, content: appended };
         setCurrent(newNote);
         setNotes(prev => prev.map(n => n.id === newNote.id ? newNote : n));
         setAddingPostscript(false);
         setPsText("");
+        // scroll to show the postscript
+        setTimeout(() => {
+          if (contentRef.current) {
+            contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: "smooth" });
+          }
+        }, 80);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`保存失败: ${err.error ?? res.status}`);
       }
+    } catch (e) {
+      alert(`保存失败: ${e}`);
     } finally {
       setSaving(false);
     }
@@ -164,7 +175,7 @@ export default function DiaryCard() {
       </div>
 
       {/* Content */}
-      <div className="px-5 py-4 overflow-y-auto flex-1">
+      <div ref={contentRef} className="px-5 py-4 overflow-y-auto flex-1">
         {title && <p className="text-sm font-semibold text-gray-800 mb-2 leading-snug">{title}</p>}
         {body && <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-wrap">{body}</p>}
         {!title && !body && <p className="text-sm text-gray-300 italic">（无内容）</p>}
