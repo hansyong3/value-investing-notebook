@@ -8,27 +8,32 @@ const HOUR_MS = 60 * 60 * 1000;
 
 function stripHtml(html: string) {
   return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, "\n")
     .replace(/<[^>]*>/g, "")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-// Split content into main body and postscripts separated by ---
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// The editor may rewrite "---\n附言" as HTML paragraphs, so match loosely.
+const PS_SPLIT = /\s*-{3,}\s*(?=附言[（(])/;
+
 function parseNote(note: Note) {
   const raw = note.content ?? "";
   const nl = raw.indexOf("\n");
-  const title = stripHtml(nl > 0 ? raw.slice(0, nl) : raw);
-  const rest = stripHtml(nl > 0 ? raw.slice(nl + 1) : "");
+  const title = stripHtml(nl > 0 ? raw.slice(0, nl) : "");
+  const rest = stripHtml(nl > 0 ? raw.slice(nl + 1) : raw);
 
-  // Split on postscript separators
-  const parts = rest.split(/\n?---\n/);
-  const body = parts[0].trim();
-  const postscripts = parts.slice(1).map(p => p.trim()).filter(Boolean);
-
-  return { title, body, postscripts };
+  const [main, ...postscripts] = rest.split(PS_SPLIT);
+  return { title, body: main.trim(), postscripts: postscripts.map(p => p.trim()).filter(Boolean) };
 }
 
 // Fisher-Yates shuffle
@@ -121,7 +126,8 @@ export default function DiaryCard() {
     if (!current || !psText.trim()) return;
     setSaving(true);
     const today = new Date().toISOString().split("T")[0];
-    const appended = `${current.content}\n---\n附言（${today}）\n${psText.trim()}`;
+    const psHtml = psText.trim().split("\n").map(l => `<p>${escapeHtml(l)}</p>`).join("");
+    const appended = `${current.content}<p>---</p><p>附言（${today}）</p>${psHtml}`;
     try {
       const res = await fetch("/api/notes", {
         method: "POST",
@@ -184,7 +190,7 @@ export default function DiaryCard() {
 
         {/* Existing postscripts */}
         {postscripts.map((ps, i) => {
-          const match = ps.match(/^附言（(.+?)）\n?([\s\S]*)$/);
+          const match = ps.match(/^附言[（(]\s*(.+?)\s*[）)]\s*([\s\S]*)$/);
           const psDate = match?.[1] ?? "";
           const psBody = match?.[2]?.trim() ?? ps;
           return (
