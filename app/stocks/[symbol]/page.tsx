@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import NotePanel from "@/components/NotePanel";
 import HoldingsPanel from "@/components/HoldingsPanel";
 import DiaryCard from "@/components/DiaryCard";
+import { exportBookPdf } from "@/lib/exportBookPdf";
 
 const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false });
 
@@ -389,7 +390,7 @@ export default function StockPage() {
       {stocks.find(s => s.symbol === decodedSymbol)?.notebook ? (
         /* NOTEBOOK: unified notes + action rows */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
-          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} isNotebook={true} />
+          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportBookPdf(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} isNotebook={true} />
         </div>
       ) : (
         <div ref={containerRef} className="flex flex-1 overflow-hidden min-h-0">
