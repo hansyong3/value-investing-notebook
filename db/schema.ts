@@ -7,6 +7,8 @@ export const stocks = pgTable("stocks", {
   order: integer("order").default(0).notNull(),
   notebook: boolean("notebook").default(false).notNull(),
   holding: boolean("holding").default(false).notNull(),
+  fairPrice: numeric("fair_price", { precision: 15, scale: 4 }),
+  buyPrice: numeric("buy_price", { precision: 15, scale: 4 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

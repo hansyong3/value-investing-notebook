@@ -12,7 +12,38 @@ const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false
 
 type Bar = { time: string; open: number; high: number; low: number; close: number };
 type Note = { id: number; date: string; content: string; starred: boolean; images: { id: number; url: string }[] };
-type Stock = { id: number; symbol: string; name: string; notebook: boolean; holding: boolean };
+type Stock = { id: number; symbol: string; name: string; notebook: boolean; holding: boolean; fairPrice: string | null; buyPrice: string | null };
+
+// "buy" = at/below 买入价, "fair" = at/below 合理价 but above 买入价
+function priceZone(s: Stock | undefined, price: number | undefined): "buy" | "fair" | null {
+  if (!s || price == null) return null;
+  const buy = s.buyPrice != null ? Number(s.buyPrice) : null;
+  const fair = s.fairPrice != null ? Number(s.fairPrice) : null;
+  if (buy != null && price <= buy) return "buy";
+  if (fair != null && price <= fair) return "fair";
+  return null;
+}
+
+function fmtPrice(n: number) {
+  return n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 2 : 3 });
+}
+
+function PriceLevelInput({ label, value, onSave }: { label: string; value: string | null; onSave: (v: string) => void }) {
+  const [draft, setDraft] = useState(value != null ? String(Number(value)) : "");
+  useEffect(() => { setDraft(value != null ? String(Number(value)) : ""); }, [value]);
+  return (
+    <label className="flex items-center gap-1 text-xs text-gray-400">
+      {label}
+      <input
+        type="number" step="any" min="0" value={draft} placeholder="—"
+        onChange={e => setDraft(e.target.value)}
+        onBlur={() => { if (draft !== (value != null ? String(Number(value)) : "")) onSave(draft); }}
+        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        className="w-20 border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:border-blue-400"
+      />
+    </label>
+  );
+}
 type Holding = { id: number; type: string; date: string; shares: string; price: string; currency: string; fee: string; note: string };
 
 async function exportNotes(symbol: string, stockName: string) {
@@ -122,6 +153,9 @@ export default function StockPage() {
 
   // Drag-and-drop state
   const [dragId, setDragId] = useState<number | null>(null);
+
+  // Latest price per symbol, for stocks that have a 合理价 or 买入价 set
+  const [quotes, setQuotes] = useState<Record<string, number>>({});
   // Where a dragged stock would land: before/after a row, or at the end of a section
   const [dropHint, setDropHint] = useState<{ holding: boolean; id: number | null; after: boolean } | null>(null);
 
@@ -171,6 +205,40 @@ export default function StockPage() {
   }, [decodedSymbol, stocks]);
 
   useEffect(() => { fetchStocks(); }, [fetchStocks]);
+
+  const watchedSymbols = stocks
+    .filter(s => !s.notebook && (s.fairPrice != null || s.buyPrice != null))
+    .map(s => s.symbol).sort().join(",");
+
+  useEffect(() => {
+    if (!watchedSymbols) return;
+    let cancelled = false;
+    async function load() {
+      const entries = await Promise.all(watchedSymbols.split(",").map(async sym => {
+        try {
+          const res = await fetch(`/api/price?symbol=${encodeURIComponent(sym)}&interval=1d&range=5d`);
+          const bars = await res.json();
+          const last = Array.isArray(bars) ? bars[bars.length - 1]?.close : undefined;
+          return typeof last === "number" ? [sym, last] as const : null;
+        } catch { return null; }
+      }));
+      if (!cancelled) setQuotes(q => ({ ...q, ...Object.fromEntries(entries.filter(e => e !== null)) }));
+    }
+    load();
+    const t = window.setInterval(load, 10 * 60 * 1000);
+    return () => { cancelled = true; window.clearInterval(t); };
+  }, [watchedSymbols]);
+
+  async function savePriceLevel(id: number, field: "fairPrice" | "buyPrice", raw: string) {
+    const value = raw.trim() === "" ? null : raw.trim();
+    const res = await fetch("/api/stocks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, [field]: value }),
+    });
+    if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "保存失败"); }
+    fetchStocks();
+  }
   useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets]);
 
   async function moveStock(holding: boolean, targetId: number | null, after: boolean) {
@@ -306,12 +374,28 @@ export default function StockPage() {
                         className="w-full text-sm font-semibold text-gray-800 bg-white border border-blue-400 rounded px-1 focus:outline-none"
                       />
                     ) : (
-                      <div
-                        className={`text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}
-                        onDoubleClick={(e) => { e.stopPropagation(); setEditingId(stock.id); setEditingName(stock.name); }}
-                        title="双击编辑名称"
-                      >
-                        {stock.name}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div
+                          className={`text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}
+                          onDoubleClick={(e) => { e.stopPropagation(); setEditingId(stock.id); setEditingName(stock.name); }}
+                          title="双击编辑名称"
+                        >
+                          {stock.name}
+                        </div>
+                        {(() => {
+                          const price = stock.symbol === decodedSymbol && latestPrice != null ? latestPrice : quotes[stock.symbol];
+                          const zone = priceZone(stock, price);
+                          if (!zone) return null;
+                          const tip = zone === "buy"
+                            ? `现价 ${fmtPrice(price!)} ≤ 买入价 ${fmtPrice(Number(stock.buyPrice))}`
+                            : `现价 ${fmtPrice(price!)} ≤ 合理价 ${fmtPrice(Number(stock.fairPrice))}`;
+                          return (
+                            <span title={tip} className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                              {zone === "buy" && <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />}
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                            </span>
+                          );
+                        })()}
                       </div>
                     )}
                     <div className="text-xs font-mono text-gray-400 truncate">{stock.symbol}</div>
@@ -469,10 +553,26 @@ export default function StockPage() {
           {/* Center: chart + holdings */}
           <div className="flex flex-col flex-1 min-w-0 border-r border-gray-200">
             {/* Toolbar */}
-            <div className="flex items-center gap-2 px-4 h-11 border-b border-gray-200 flex-shrink-0 bg-white">
+            <div className="flex items-center gap-2 px-4 h-11 border-b border-gray-200 flex-shrink-0 bg-white overflow-x-auto whitespace-nowrap">
               <span className="font-mono font-bold text-blue-600">{decodedSymbol}</span>
               <span className="text-gray-400 text-sm">{stocks.find(s => s.symbol === decodedSymbol)?.name}</span>
-              <div className="ml-auto flex items-center gap-0.5">
+              {(() => {
+                const cur = stocks.find(s => s.symbol === decodedSymbol);
+                if (!cur) return null;
+                const zone = priceZone(cur, latestPrice ?? undefined);
+                return (
+                  <div className="flex items-center gap-2 ml-3 pl-3 border-l border-gray-200 flex-shrink-0">
+                    <PriceLevelInput label="合理价" value={cur.fairPrice} onSave={v => savePriceLevel(cur.id, "fairPrice", v)} />
+                    <PriceLevelInput label="买入价" value={cur.buyPrice} onSave={v => savePriceLevel(cur.id, "buyPrice", v)} />
+                    {zone && (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${zone === "buy" ? "bg-red-500 text-white" : "bg-red-50 text-red-600 border border-red-200"}`}>
+                        {zone === "buy" ? "已到买入价" : "进入合理区"}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+              <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">
                 {INTERVALS.map(i => (
                   <button key={i.value} onClick={() => setInterval(i.value)}
                     className={`px-2 py-1 rounded text-xs transition-colors ${interval === i.value ? "bg-blue-600 text-white" : "text-gray-500 hover:text-gray-800"}`}>
