@@ -6,6 +6,7 @@ export const stocks = pgTable("stocks", {
   name: text("name").notNull(),
   order: integer("order").default(0).notNull(),
   notebook: boolean("notebook").default(false).notNull(),
+  holding: boolean("holding").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

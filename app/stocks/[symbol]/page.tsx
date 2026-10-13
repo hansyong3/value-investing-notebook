@@ -12,7 +12,7 @@ const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false
 
 type Bar = { time: string; open: number; high: number; low: number; close: number };
 type Note = { id: number; date: string; content: string; starred: boolean; images: { id: number; url: string }[] };
-type Stock = { id: number; symbol: string; name: string; notebook: boolean };
+type Stock = { id: number; symbol: string; name: string; notebook: boolean; holding: boolean };
 type Holding = { id: number; type: string; date: string; shares: string; price: string; currency: string; fee: string; note: string };
 
 async function exportNotes(symbol: string, stockName: string) {
@@ -122,6 +122,8 @@ export default function StockPage() {
 
   // Drag-and-drop state
   const [dragId, setDragId] = useState<number | null>(null);
+  // Where a dragged stock would land: before/after a row, or at the end of a section
+  const [dropHint, setDropHint] = useState<{ holding: boolean; id: number | null; after: boolean } | null>(null);
 
   // Wealth manager investment targets
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -171,8 +173,32 @@ export default function StockPage() {
   useEffect(() => { fetchStocks(); }, [fetchStocks]);
   useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets]);
 
+  async function moveStock(holding: boolean, targetId: number | null, after: boolean) {
+    const dragged = stocks.find(s => s.id === dragId);
+    setDragId(null);
+    setDropHint(null);
+    if (!dragged || dragged.notebook || dragged.id === targetId) return;
+    const rest = stocks.filter(s => s.id !== dragged.id);
+    const held = rest.filter(s => !s.notebook && s.holding);
+    const watched = rest.filter(s => !s.notebook && !s.holding);
+    const books = rest.filter(s => s.notebook);
+    const list = holding ? held : watched;
+    let idx = targetId === null ? list.length : list.findIndex(s => s.id === targetId);
+    if (idx < 0) idx = list.length;
+    else if (targetId !== null && after) idx += 1;
+    list.splice(idx, 0, { ...dragged, holding });
+    const next = [...held, ...watched, ...books];
+    setStocks(next);
+    await fetch("/api/stocks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orders: next.map((s, i) => ({ id: s.id, order: i, holding: s.holding })) }),
+    });
+  }
+
   async function handleDrop(targetId: number) {
     if (dragId === null || dragId === targetId) return;
+    if (!stocks.find(s => s.id === dragId)?.notebook) { setDragId(null); return; }
     const reordered = [...stocks];
     const fromIdx = reordered.findIndex(s => s.id === dragId);
     const toIdx = reordered.findIndex(s => s.id === targetId);
@@ -200,6 +226,8 @@ export default function StockPage() {
     router.push(`/stocks/${newSymbol.toUpperCase()}`);
   }
 
+  const draggingStock = dragId !== null && !stocks.find(s => s.id === dragId)?.notebook;
+
   return (
     <div className="flex h-screen bg-white text-gray-900 overflow-hidden">
       <DiaryCard />
@@ -211,85 +239,129 @@ export default function StockPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {/* 标的 */}
-          {stocks.filter(s => !s.notebook).map((stock) => (
-            <div key={stock.id}
-              draggable
-              onDragStart={() => setDragId(stock.id)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop(stock.id)}
-              className={`group flex items-center border-b border-gray-100 transition-colors cursor-grab active:cursor-grabbing ${
-                stock.symbol === decodedSymbol ? "bg-blue-50 border-l-2 border-l-blue-500" : "hover:bg-gray-100"
-              } ${dragId === stock.id ? "opacity-40" : ""}`}>
-              {/* Drag handle */}
-              <span className="pl-2 text-gray-300 group-hover:text-gray-400 text-xs select-none">⠿</span>
-              <button onClick={() => router.push(`/stocks/${stock.symbol}`)}
-                className="flex-1 text-left px-2 py-2.5 min-w-0">
-                {editingId === stock.id ? (
-                  <input
-                    autoFocus
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onBlur={async () => {
-                      if (editingName.trim() && editingName !== stock.name) {
+          {[
+            { holding: true, label: "持仓" },
+            { holding: false, label: "观察" },
+          ].map(({ holding, label }) => {
+            const list = stocks.filter(s => !s.notebook && s.holding === holding);
+            const endHint = dropHint?.holding === holding && dropHint.id === null;
+            const dropToEnd = {
+              onDragOver: (e: React.DragEvent) => {
+                e.preventDefault();
+                if (draggingStock && !endHint) setDropHint({ holding, id: null, after: true });
+              },
+              onDrop: (e: React.DragEvent) => { e.preventDefault(); moveStock(holding, null, true); },
+            };
+            return (
+              <div key={label}>
+                <div {...dropToEnd}
+                  className={`px-3 pt-3 pb-1.5 flex items-center justify-between ${holding ? "" : "border-t border-gray-200 mt-1"}`}>
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</span>
+                  <span className="text-xs text-gray-300">{list.length}</span>
+                </div>
+                {list.map((stock) => (
+                  <div key={stock.id}
+                  draggable
+                  onDragStart={() => setDragId(stock.id)}
+                  onDragEnd={() => { setDragId(null); setDropHint(null); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    const after = e.clientY > r.top + r.height / 2;
+                    if (draggingStock && (dropHint?.id !== stock.id || dropHint.after !== after)) setDropHint({ holding: stock.holding, id: stock.id, after });
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    moveStock(stock.holding, stock.id, e.clientY > r.top + r.height / 2);
+                  }}
+                  className={`relative group flex items-center border-b border-gray-100 transition-colors cursor-grab active:cursor-grabbing ${
+                    stock.symbol === decodedSymbol ? "bg-blue-50 border-l-2 border-l-blue-500" : "hover:bg-gray-100"
+                  } ${dragId === stock.id ? "opacity-40" : ""}`}>
+                  {dropHint?.id === stock.id && (
+                    <span className={`absolute left-0 right-0 h-0.5 bg-blue-500 pointer-events-none ${dropHint.after ? "-bottom-px" : "-top-px"}`} />
+                  )}
+                  {/* Drag handle */}
+                  <span className="pl-2 text-gray-300 group-hover:text-gray-400 text-xs select-none">⠿</span>
+                  <button onClick={() => router.push(`/stocks/${stock.symbol}`)}
+                    className="flex-1 text-left px-2 py-2.5 min-w-0">
+                    {editingId === stock.id ? (
+                      <input
+                        autoFocus
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onBlur={async () => {
+                          if (editingName.trim() && editingName !== stock.name) {
+                            await fetch("/api/stocks", {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ id: stock.id, name: editingName.trim() }),
+                            });
+                            fetchStocks();
+                          }
+                          setEditingId(null);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingId(null); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full text-sm font-semibold text-gray-800 bg-white border border-blue-400 rounded px-1 focus:outline-none"
+                      />
+                    ) : (
+                      <div
+                        className={`text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}
+                        onDoubleClick={(e) => { e.stopPropagation(); setEditingId(stock.id); setEditingName(stock.name); }}
+                        title="双击编辑名称"
+                      >
+                        {stock.name}
+                      </div>
+                    )}
+                    <div className="text-xs font-mono text-gray-400 truncate">{stock.symbol}</div>
+                  </button>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 mr-1.5 transition-all">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
                         await fetch("/api/stocks", {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ id: stock.id, name: editingName.trim() }),
+                          body: JSON.stringify({ id: stock.id, notebook: !stock.notebook }),
                         });
-                        fetchStocks();
-                      }
-                      setEditingId(null);
-                    }}
-                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingId(null); }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full text-sm font-semibold text-gray-800 bg-white border border-blue-400 rounded px-1 focus:outline-none"
-                  />
-                ) : (
-                  <div
-                    className={`text-sm font-semibold truncate ${stock.symbol === decodedSymbol ? "text-blue-600" : "text-gray-800"}`}
-                    onDoubleClick={(e) => { e.stopPropagation(); setEditingId(stock.id); setEditingName(stock.name); }}
-                    title="双击编辑名称"
-                  >
-                    {stock.name}
+                        await fetchStocks();
+                      }}
+                      className="text-gray-300 hover:text-purple-500 transition-colors text-xs"
+                      title={stock.notebook ? "转为标的" : "转为笔记本"}
+                    >
+                      {stock.notebook ? "📈" : "📓"}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`确定删除 ${stock.symbol}？相关笔记和持仓也会一并删除。`)) return;
+                        await fetch(`/api/stocks?id=${stock.id}`, { method: "DELETE" });
+                        await fetchStocks();
+                        if (stock.symbol === decodedSymbol && stocks.length > 1) {
+                          const next = stocks.find(s => s.id !== stock.id);
+                          if (next) router.push(`/stocks/${next.symbol}`);
+                          else router.push("/");
+                        } else if (stocks.length <= 1) {
+                          router.push("/");
+                        }
+                      }}
+                      className="text-gray-300 hover:text-red-400 transition-colors text-xs px-0.5"
+                    >✕</button>
                   </div>
-                )}
-                <div className="text-xs font-mono text-gray-400 truncate">{stock.symbol}</div>
-              </button>
-              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 mr-1.5 transition-all">
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    await fetch("/api/stocks", {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ id: stock.id, notebook: !stock.notebook }),
-                    });
-                    await fetchStocks();
-                  }}
-                  className="text-gray-300 hover:text-purple-500 transition-colors text-xs"
-                  title={stock.notebook ? "转为标的" : "转为笔记本"}
-                >
-                  {stock.notebook ? "📈" : "📓"}
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!confirm(`确定删除 ${stock.symbol}？相关笔记和持仓也会一并删除。`)) return;
-                    await fetch(`/api/stocks?id=${stock.id}`, { method: "DELETE" });
-                    await fetchStocks();
-                    if (stock.symbol === decodedSymbol && stocks.length > 1) {
-                      const next = stocks.find(s => s.id !== stock.id);
-                      if (next) router.push(`/stocks/${next.symbol}`);
-                      else router.push("/");
-                    } else if (stocks.length <= 1) {
-                      router.push("/");
-                    }
-                  }}
-                  className="text-gray-300 hover:text-red-400 transition-colors text-xs px-0.5"
-                >✕</button>
+                </div>
+                ))}
+                {/* Drop zone at the end of the section (always there so empty sections accept drops) */}
+                <div {...dropToEnd}
+                  className={`mx-2 my-1 rounded text-center text-xs transition-colors ${
+                    draggingStock
+                      ? `py-2 border border-dashed ${endHint ? "border-blue-400 text-blue-500 bg-blue-50" : "border-gray-300 text-gray-300"}`
+                      : list.length === 0 ? "py-2 text-gray-300" : "h-1"
+                  }`}>
+                  {draggingStock || (dragId === null && list.length === 0) ? `拖到${label}` : ""}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* 笔记本分区 */}
           {stocks.some(s => s.notebook) && (

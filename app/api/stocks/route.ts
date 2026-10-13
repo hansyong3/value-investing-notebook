@@ -33,8 +33,8 @@ export async function PATCH(req: Request) {
   // Reorder: { orders: [{id, order}] }
   if (body.orders) {
     await Promise.all(
-      body.orders.map(({ id, order }: { id: number; order: number }) =>
-        db.update(stocks).set({ order }).where(eq(stocks.id, id))
+      body.orders.map(({ id, order, holding }: { id: number; order: number; holding?: boolean }) =>
+        db.update(stocks).set(holding === undefined ? { order } : { order, holding }).where(eq(stocks.id, id))
       )
     );
     return NextResponse.json({ ok: true });
