@@ -294,6 +294,7 @@ export default function StockPage() {
     router.push(`/stocks/${newSymbol.toUpperCase()}`);
   }
 
+  // dragId is set via setTimeout in onDragStart: Chrome cancels a drag if the source row shifts during dragstart.
   const draggingStock = dragId !== null && !stocks.find(s => s.id === dragId)?.notebook;
 
   return (
@@ -330,7 +331,7 @@ export default function StockPage() {
                 {list.map((stock) => (
                   <div key={stock.id}
                   draggable
-                  onDragStart={() => setDragId(stock.id)}
+                  onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(stock.id)); const id = stock.id; setTimeout(() => setDragId(id), 0); }}
                   onDragEnd={() => { setDragId(null); setDropHint(null); }}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -456,7 +457,7 @@ export default function StockPage() {
               {stocks.filter(s => s.notebook).map((stock) => (
                 <div key={stock.id}
                   draggable
-                  onDragStart={() => setDragId(stock.id)}
+                  onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(stock.id)); const id = stock.id; setTimeout(() => setDragId(id), 0); }}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleDrop(stock.id)}
                   className={`group flex items-center border-b border-gray-100 transition-colors cursor-grab active:cursor-grabbing ${
