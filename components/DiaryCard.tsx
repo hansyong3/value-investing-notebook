@@ -32,14 +32,31 @@ function parseNote(note: Note) {
   return { title, body: main.trim(), postscripts: postscripts.map(p => p.trim()).filter(Boolean) };
 }
 
-// Fisher-Yates shuffle
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+// Rotation state lives in localStorage so it survives reloads and stock
+// switches: every note is shown once (random order) before any repeats.
+const SEEN_KEY = "diary-review-seen";
+
+function readSeen(): number[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter(Number.isInteger) : [];
+  } catch { return []; }
+}
+
+function pickNext(pool: Note[], lastId?: number): { note: Note; seen: number; total: number } | null {
+  if (!pool.length) return null;
+  const ids = new Set(pool.map(n => n.id));
+  let seen = readSeen().filter(id => ids.has(id));
+  let unseen = pool.filter(n => !seen.includes(n.id));
+  if (!unseen.length) {
+    seen = [];
+    // new round: avoid showing the same note twice in a row
+    unseen = pool.length > 1 ? pool.filter(n => n.id !== lastId) : pool;
   }
-  return a;
+  const note = unseen[Math.floor(Math.random() * unseen.length)];
+  seen.push(note.id);
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch { /* private mode */ }
+  return { note, seen: seen.length, total: pool.length };
 }
 
 // Loaded once per page load; navigating between stocks reuses it.
@@ -66,27 +83,35 @@ export default function DiaryCard() {
   const [addingPostscript, setAddingPostscript] = useState(false);
   const [psText, setPsText] = useState("");
   const [saving, setSaving] = useState(false);
-  const queueRef = useRef<Note[]>([]);
+  const [progress, setProgress] = useState<{ seen: number; total: number } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The hourly timer is created once, so it reads the latest values through refs
+  const notesRef = useRef<Note[]>([]);
+  const currentIdRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    notesRef.current = notes;
+    currentIdRef.current = current?.id;
+  }, [notes, current]);
   const psRef = useRef<HTMLTextAreaElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  function nextFromQueue(pool: Note[]) {
-    if (!pool.length) return null;
-    if (!queueRef.current.length) {
-      queueRef.current = shuffle(pool);
-    }
-    return queueRef.current.shift()!;
+  function showNext(pool: Note[], lastId?: number) {
+    const r = pickNext(pool, lastId);
+    if (!r) return false;
+    setCurrent(r.note);
+    setProgress({ seen: r.seen, total: r.total });
+    setVisible(true);
+    setAddingPostscript(false);
+    setPsText("");
+    return true;
   }
 
   useEffect(() => {
     async function loadAndShow() {
       const data = await loadDiary();
       if (!data.length) return;
-      queueRef.current = shuffle(data);
       setNotes(data);
-      setCurrent(queueRef.current.shift()!);
-      setVisible(true);
+      showNext(data);
     }
 
     loadAndShow();
@@ -94,21 +119,11 @@ export default function DiaryCard() {
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
-      setNotes(prev => {
-        const note = nextFromQueue(prev);
-        if (note) {
-          setCurrent(note);
-          setVisible(true);
-          setAddingPostscript(false);
-          setPsText("");
-        }
-        return prev;
-      });
+      showNext(notesRef.current, currentIdRef.current);
     }, HOUR_MS);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Focus textarea when postscript input opens
@@ -166,6 +181,11 @@ export default function DiaryCard() {
           <span className="text-amber-400 text-sm">📖</span>
           <span className="text-xs font-semibold text-amber-700">投资日记回顾</span>
           <span className="text-xs text-amber-400">{current.date}</span>
+          {progress && (
+            <span className="text-xs text-amber-300" title="本轮已回顾 / 日记总数；全部看完才开始新一轮">
+              · {progress.seen}/{progress.total}
+            </span>
+          )}
         </div>
         <button
           onClick={() => setVisible(false)}
@@ -242,8 +262,7 @@ export default function DiaryCard() {
         </button>
         <button
           onClick={() => {
-            const note = nextFromQueue(notes);
-            if (note) { setCurrent(note); setAddingPostscript(false); setPsText(""); }
+            showNext(notes, current.id);
           }}
           className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-full"
         >
