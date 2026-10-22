@@ -19,10 +19,6 @@ function stripHtml(html: string) {
     .trim();
 }
 
-function escapeHtml(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 // The editor may rewrite "---\n附言" as HTML paragraphs, so match loosely.
 const PS_SPLIT = /\s*-{3,}\s*(?=附言[（(])/;
 
@@ -46,6 +42,23 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+// Loaded once per page load; navigating between stocks reuses it.
+let diaryCache: Promise<Note[]> | null = null;
+function loadDiary(): Promise<Note[]> {
+  if (!diaryCache) {
+    diaryCache = fetch("/api/diary")
+      .then(r => r.json())
+      .then(d => (Array.isArray(d?.notes) ? d.notes : []))
+      .catch(() => { diaryCache = null; return []; });
+  }
+  return diaryCache;
+}
+
+function localDate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function DiaryCard() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [current, setCurrent] = useState<Note | null>(null);
@@ -53,7 +66,6 @@ export default function DiaryCard() {
   const [addingPostscript, setAddingPostscript] = useState(false);
   const [psText, setPsText] = useState("");
   const [saving, setSaving] = useState(false);
-  const [diarySymbol, setDiarySymbol] = useState("");
   const queueRef = useRef<Note[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const psRef = useRef<HTMLTextAreaElement>(null);
@@ -69,30 +81,12 @@ export default function DiaryCard() {
 
   useEffect(() => {
     async function loadAndShow() {
-      try {
-        const stocksRes = await fetch("/api/stocks");
-        const stocks: { symbol: string; name: string; notebook: boolean }[] = await stocksRes.json();
-
-        const diaryStock =
-          stocks.find(s => s.notebook && s.name.includes("日记")) ??
-          stocks.find(s => s.notebook);
-
-        if (!diaryStock) return;
-        setDiarySymbol(diaryStock.symbol);
-
-        const notesRes = await fetch(`/api/notes?symbol=${encodeURIComponent(diaryStock.symbol)}`);
-        const data: Note[] = await notesRes.json();
-        if (!Array.isArray(data) || !data.length) return;
-
-        queueRef.current = shuffle(data);
-        setNotes(data);
-
-        const note = queueRef.current.shift()!;
-        setCurrent(note);
-        setVisible(true);
-      } catch {
-        // silently ignore
-      }
+      const data = await loadDiary();
+      if (!data.length) return;
+      queueRef.current = shuffle(data);
+      setNotes(data);
+      setCurrent(queueRef.current.shift()!);
+      setVisible(true);
     }
 
     loadAndShow();
@@ -125,17 +119,17 @@ export default function DiaryCard() {
   async function savePostscript() {
     if (!current || !psText.trim()) return;
     setSaving(true);
-    const today = new Date().toISOString().split("T")[0];
-    const psHtml = psText.trim().split("\n").map(l => `<p>${escapeHtml(l)}</p>`).join("");
-    const appended = `${current.content}<p>---</p><p>附言（${today}）</p>${psHtml}`;
     try {
-      const res = await fetch("/api/notes", {
+      const res = await fetch("/api/diary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol: diarySymbol, id: current.id, content: appended }),
+        body: JSON.stringify({ id: current.id, text: psText, date: localDate() }),
       });
       if (res.ok) {
-        const newNote: Note = { ...current, content: appended };
+        const { psHtml } = await res.json();
+        const newNote: Note = { ...current, content: current.content + psHtml };
+        // keep the cached copy in sync so the postscript survives navigation
+        diaryCache = loadDiary().then(list => list.map(n => n.id === newNote.id ? newNote : n));
         setCurrent(newNote);
         setNotes(prev => prev.map(n => n.id === newNote.id ? newNote : n));
         setAddingPostscript(false);
