@@ -369,12 +369,31 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onN
     schedSave(id, titles[id] ?? "", html);
   }
 
+  // Images are stored inline as base64 in the note, so shrink them before inserting:
+  // longest side ≤ 1600px, JPEG 0.85. Keep the original if that isn't smaller.
   async function imageToDataUrl(file: File): Promise<string> {
-    return new Promise(resolve => {
+    const original = await new Promise<string>(resolve => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
     });
+    if (file.type === "image/gif" || file.type === "image/svg+xml") return original;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#fff"; // JPEG has no transparency
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const compressed = canvas.toDataURL("image/jpeg", 0.85);
+      return compressed.length < original.length ? compressed : original;
+    } catch {
+      return original;
+    }
   }
 
   async function toggleStar(id: number, current: boolean) {
