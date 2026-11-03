@@ -20,6 +20,8 @@ type Props = {
   notes: Note[];
   activeDate: string | null;
   onNotesSaved: () => void;
+  // Update the page's notes in place instead of re-downloading the whole notebook
+  onNotesPatched: (update: (notes: Note[]) => Note[]) => void;
   onExportPdf: () => Promise<void>;
   notebooks?: Notebook[];
   centered?: boolean;
@@ -58,10 +60,11 @@ function formatPrice(price: number): string {
   return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
 }
 
-export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onExportPdf, notebooks = [], centered, bars = [], isNotebook }: Props) {
+export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onNotesPatched, onExportPdf, notebooks = [], centered, bars = [], isNotebook }: Props) {
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [bodies, setBodies] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
+  const [saveFailed, setSaveFailed] = useState<Record<number, boolean>>({});
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [adding, setAdding] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -203,20 +206,19 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     if (Array.isArray(data)) setAllTags(data);
   }, []);
 
-  const fetchNoteTags = useCallback(async (noteIds: number[]) => {
-    if (noteIds.length === 0) return;
-    const results = await Promise.all(
-      noteIds.map(id => fetch(`/api/note-tags?noteId=${id}`).then(r => r.json()))
-    );
+  const fetchNoteTags = useCallback(async () => {
+    const res = await fetch(`/api/note-tags?symbol=${encodeURIComponent(symbol)}`);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return;
     const map: Record<number, number[]> = {};
-    noteIds.forEach((id, i) => {
-      map[id] = Array.isArray(results[i]) ? results[i].map((r: { tagId: number }) => r.tagId) : [];
-    });
+    for (const r of rows as { noteId: number; tagId: number }[]) (map[r.noteId] ??= []).push(r.tagId);
     setNoteTags(map);
-  }, []);
+  }, [symbol]);
 
   useEffect(() => { fetchTags(); }, [fetchTags]);
-  useEffect(() => { fetchNoteTags(notes.map(n => n.id)); }, [notes, fetchNoteTags]);
+  // Re-fetch tags only when notes are added/removed, not on every content edit
+  const noteIdsKey = notes.map(n => n.id).sort((a, b) => a - b).join(",");
+  useEffect(() => { if (noteIdsKey) fetchNoteTags(); }, [noteIdsKey, fetchNoteTags]);
 
   // Close popovers on outside click
   useEffect(() => {
@@ -330,18 +332,32 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
   const schedSave = useCallback((id: number, title: string, body: string) => {
     editingIds.current.add(id);
     clearTimeout(saveTimers.current[id]);
-    saveTimers.current[id] = setTimeout(async () => {
+    const content = title + (body ? "\n" + body : "");
+    const attempt = async () => {
       setSaving(s => ({ ...s, [id]: true }));
-      await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol, id, content: title + (body ? "\n" + body : "") }),
-      });
+      let ok = false;
+      try {
+        const res = await fetch("/api/notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol, id, content }),
+        });
+        ok = res.ok;
+      } catch { ok = false; }
       setSaving(s => ({ ...s, [id]: false }));
-      editingIds.current.delete(id);
-      onNotesSaved();
-    }, 1500);
-  }, [symbol, onNotesSaved]);
+      setSaveFailed(f => ({ ...f, [id]: !ok }));
+      if (!ok) {
+        // keep the typed text on screen and retry, unless newer edits already rescheduled
+        if (saveTimers.current[id] === timer) saveTimers.current[id] = timer = setTimeout(attempt, 15000);
+        return;
+      }
+      onNotesPatched(list => list.map(n => n.id === id ? { ...n, content } : n));
+      // Only release the note if the user hasn't typed more since this save started
+      if (saveTimers.current[id] === timer) editingIds.current.delete(id);
+    };
+    let timer = setTimeout(attempt, 1500);
+    saveTimers.current[id] = timer;
+  }, [symbol, onNotesPatched]);
 
   function handleTitle(id: number, val: string) {
     setTitles(t => ({ ...t, [id]: val }));
@@ -367,13 +383,13 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ symbol, id, starred: !current }),
     });
-    onNotesSaved();
+    onNotesPatched(list => list.map(n => n.id === id ? { ...n, starred: !current } : n));
   }
 
   async function deleteNote(id: number) {
     if (!confirm("确定删除这条笔记？")) return;
     await fetch(`/api/notes?id=${id}`, { method: "DELETE" });
-    onNotesSaved();
+    onNotesPatched(list => list.filter(n => n.id !== id));
   }
 
   async function addNewNote() {
@@ -386,7 +402,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
     });
     const newNote = await res.json();
     setAdding(false);
-    onNotesSaved();
+    if (newNote?.id) onNotesPatched(list => [...list, { ...newNote, images: [] }]);
+    else onNotesSaved();
     setTimeout(() => {
       listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       if (newNote?.id) setExpanded(e => ({ ...e, [newNote.id]: true }));
@@ -652,7 +669,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                       onChange={async (e) => {
                         if (!e.target.value) return;
                         await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol, id: note.id, date: e.target.value }) });
-                        onNotesSaved();
+                        const date = e.target.value;
+                        onNotesPatched(list => list.map(n => n.id === note.id ? { ...n, date } : n));
                       }}
                       className={`text-xs border-none bg-transparent focus:outline-none cursor-pointer ${hl ? "text-blue-500" : "text-gray-400"}`}
                     />
@@ -679,6 +697,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onE
                   </div>
                   <div className="flex items-center gap-1.5 relative">
                     {saving[note.id] && <span className="text-xs text-gray-400">保存中...</span>}
+                    {!saving[note.id] && saveFailed[note.id] && <span className="text-xs font-semibold text-red-600" title="内容还在页面上，15 秒后自动重试；刷新前请先复制保存">保存失败，自动重试中</span>}
 
                     {/* Copy to notebook button */}
                     {notebooks.length > 0 && (

@@ -239,7 +239,10 @@ export default function StockPage() {
     if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "保存失败"); }
     fetchStocks();
   }
-  useEffect(() => { fetchPrice(); fetchNotes(); fetchHoldings(); fetchWealthTargets(); }, [fetchPrice, fetchNotes, fetchHoldings, fetchWealthTargets]);
+  // Separate effects: changing the chart range or the stock list must not re-download all notes
+  useEffect(() => { fetchPrice(); }, [fetchPrice]);
+  useEffect(() => { fetchNotes(); fetchHoldings(); }, [fetchNotes, fetchHoldings]);
+  useEffect(() => { fetchWealthTargets(); }, [fetchWealthTargets]);
 
   async function moveStock(holding: boolean, targetId: number | null, after: boolean) {
     const dragged = stocks.find(s => s.id === dragId);
@@ -547,7 +550,7 @@ export default function StockPage() {
       {stocks.find(s => s.symbol === decodedSymbol)?.notebook ? (
         /* NOTEBOOK: unified notes + action rows */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
-          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onExportPdf={() => exportBookPdf(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} isNotebook={true} />
+          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onNotesPatched={setNotes} onExportPdf={() => exportBookPdf(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} isNotebook={true} />
         </div>
       ) : (
         <div ref={containerRef} className="flex flex-1 overflow-hidden min-h-0">
@@ -674,7 +677,7 @@ export default function StockPage() {
 
           {/* Right: notes */}
           <div className="flex-shrink-0 min-h-0 overflow-hidden flex flex-col bg-white" style={{ width: `${notesWidth}%` }}>
-            <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} bars={bars} />
+            <NotePanel symbol={decodedSymbol} notes={notes} activeDate={activeDate} onNotesSaved={fetchNotes} onNotesPatched={setNotes} onExportPdf={() => exportNotes(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} bars={bars} />
           </div>
         </div>
       )}

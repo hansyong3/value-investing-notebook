@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { noteTags } from "@/db/schema";
+import { noteTags, notes, stocks } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 // GET: fetch all tags for a note
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  // All tag links for one stock/notebook in a single query
+  const symbol = searchParams.get("symbol");
+  if (symbol) {
+    const rows = await db
+      .select({ noteId: noteTags.noteId, tagId: noteTags.tagId })
+      .from(noteTags)
+      .innerJoin(notes, eq(notes.id, noteTags.noteId))
+      .innerJoin(stocks, eq(stocks.id, notes.stockId))
+      .where(eq(stocks.symbol, symbol.toUpperCase()));
+    return NextResponse.json(rows);
+  }
   const noteId = Number(searchParams.get("noteId"));
   if (!noteId) return NextResponse.json({ error: "Missing noteId" }, { status: 400 });
   const rows = await db.select().from(noteTags).where(eq(noteTags.noteId, noteId));
