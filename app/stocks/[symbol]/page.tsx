@@ -24,6 +24,10 @@ function priceZone(s: Stock | undefined, price: number | undefined): "buy" | "fa
   return null;
 }
 
+// Sidebar price checks: shared across stock switches, refreshed at most every 10 min
+const QUOTE_TTL_MS = 10 * 60 * 1000;
+const quoteCache: { symbols: string; at: number; data: Record<string, number> } = { symbols: "", at: 0, data: {} };
+
 function fmtPrice(n: number) {
   return n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 2 : 3 });
 }
@@ -155,7 +159,8 @@ export default function StockPage() {
   const [dragId, setDragId] = useState<number | null>(null);
 
   // Latest price per symbol, for stocks that have a 合理价 or 买入价 set
-  const [quotes, setQuotes] = useState<Record<string, number>>({});
+  // Start from prices cached by a previous visit (switching stocks remounts this page)
+  const [quotes, setQuotes] = useState<Record<string, number>>(() => ({ ...quoteCache.data }));
   // Where a dragged stock would land: before/after a row, or at the end of a section
   const [dropHint, setDropHint] = useState<{ holding: boolean; id: number | null; after: boolean } | null>(null);
 
@@ -214,6 +219,11 @@ export default function StockPage() {
     if (!watchedSymbols) return;
     let cancelled = false;
     async function load() {
+      // Don't poll while the tab is in the background; catch up when it's shown again
+      if (document.visibilityState !== "visible") return;
+      if (quoteCache.symbols === watchedSymbols && Date.now() - quoteCache.at < QUOTE_TTL_MS) return;
+      quoteCache.symbols = watchedSymbols;
+      quoteCache.at = Date.now();
       const entries = await Promise.all(watchedSymbols.split(",").map(async sym => {
         try {
           const res = await fetch(`/api/price?symbol=${encodeURIComponent(sym)}&interval=1d&range=5d`);
@@ -222,11 +232,14 @@ export default function StockPage() {
           return typeof last === "number" ? [sym, last] as const : null;
         } catch { return null; }
       }));
-      if (!cancelled) setQuotes(q => ({ ...q, ...Object.fromEntries(entries.filter(e => e !== null)) }));
+      const data = Object.fromEntries(entries.filter(e => e !== null));
+      quoteCache.data = { ...quoteCache.data, ...data };
+      if (!cancelled) setQuotes(q => ({ ...q, ...data }));
     }
     load();
-    const t = window.setInterval(load, 10 * 60 * 1000);
-    return () => { cancelled = true; window.clearInterval(t); };
+    const t = window.setInterval(load, QUOTE_TTL_MS);
+    document.addEventListener("visibilitychange", load);
+    return () => { cancelled = true; window.clearInterval(t); document.removeEventListener("visibilitychange", load); };
   }, [watchedSymbols]);
 
   async function savePriceLevel(id: number, field: "fairPrice" | "buyPrice", raw: string) {
