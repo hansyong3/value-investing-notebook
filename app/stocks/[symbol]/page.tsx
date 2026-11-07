@@ -563,7 +563,7 @@ export default function StockPage() {
       {stocks.find(s => s.symbol === decodedSymbol)?.notebook ? (
         /* NOTEBOOK: unified notes + action rows */
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">
-          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onNotesPatched={setNotes} onExportPdf={() => exportBookPdf(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "")} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} isNotebook={true} />
+          <NotePanel symbol={decodedSymbol} notes={notes} activeDate={null} onNotesSaved={fetchNotes} onNotesPatched={setNotes} onExportPdf={(layout) => exportBookPdf(decodedSymbol, stocks.find(s => s.symbol === decodedSymbol)?.name ?? "", layout)} notebooks={stocks.filter(s => s.notebook)} centered bars={bars} isNotebook={true} />
         </div>
       ) : (
         <div ref={containerRef} className="flex flex-1 overflow-hidden min-h-0">

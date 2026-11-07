@@ -22,7 +22,7 @@ type Props = {
   onNotesSaved: () => void;
   // Update the page's notes in place instead of re-downloading the whole notebook
   onNotesPatched: (update: (notes: Note[]) => Note[]) => void;
-  onExportPdf: () => Promise<void>;
+  onExportPdf: (layout?: "print" | "phone") => Promise<void>;
   notebooks?: Notebook[];
   centered?: boolean;
   bars?: Bar[];
@@ -68,6 +68,8 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onN
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [adding, setAdding] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportMenu, setExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const [creatingTable, setCreatingTable] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -514,12 +516,38 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onN
             {quoteSuccess && (
               <span className="text-xs text-purple-600 bg-purple-50 border border-purple-200 px-2 py-1 rounded">✓ 已发送到原则</span>
             )}
-            <button
-              onClick={async () => { setExporting(true); try { await onExportPdf(); } finally { setExporting(false); } }}
-              disabled={exporting}
-              className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors disabled:opacity-40">
-              {exporting ? "生成中..." : "导出 PDF"}
-            </button>
+            <div className="relative" ref={exportMenuRef}
+              onBlur={e => { if (!exportMenuRef.current?.contains(e.relatedTarget as Node)) setExportMenu(false); }}>
+              <button
+                onClick={async () => {
+                  // Notebooks offer a print or phone layout; stock pages export directly
+                  if (isNotebook) { setExportMenu(v => !v); return; }
+                  setExporting(true); try { await onExportPdf(); } finally { setExporting(false); }
+                }}
+                disabled={exporting}
+                className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2 py-1.5 rounded transition-colors disabled:opacity-40">
+                {exporting ? "生成中..." : isNotebook ? "导出 PDF ▾" : "导出 PDF"}
+              </button>
+              {exportMenu && (
+                <div className="absolute right-0 top-full mt-1 z-30 w-56 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+                  {([
+                    { layout: "print", label: "打印版", hint: "A4 横向，左右两页，适合打印" },
+                    { layout: "phone", label: "手机版", hint: "iPhone 屏幕大小，单栏大字" },
+                  ] as const).map(o => (
+                    <button key={o.layout}
+                      onClick={async () => {
+                        setExportMenu(false);
+                        setExporting(true);
+                        try { await onExportPdf(o.layout); } finally { setExporting(false); }
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors">
+                      <div className="text-sm text-gray-700">{o.label}</div>
+                      <div className="text-xs text-gray-400">{o.hint}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 {isNotebook && (
               <button
                 onClick={createActionTable}

@@ -1,7 +1,12 @@
 type BookNote = { id: number; date: string; content: string; starred: boolean };
 
-// Landscape A4 sheet holding two portrait half-pages, like an open book.
+export type BookLayout = "print" | "phone";
+
 const MM = 96 / 25.4;
+const FONT = "'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif";
+const PS_COLOR = "#92400e";
+
+// print: landscape A4 sheet holding two portrait half-pages, like an open book.
 const SHEET_W = 297;
 const SHEET_H = 210;
 const HALF_W = SHEET_W / 2;
@@ -11,10 +16,26 @@ const M_OUTER = 15;
 const M_INNER = 18; // gutter side gets more room for binding/folding
 const CONTENT_W = HALF_W - M_OUTER - M_INNER;
 const CONTENT_H = SHEET_H - M_TOP - M_BOTTOM;
-const PAGE_W_PX = Math.round(CONTENT_W * MM);
-const PAGE_H_PX = Math.round(CONTENT_H * MM);
-const FONT = "'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif";
-const PS_COLOR = "#92400e";
+
+// phone: one page = one iPhone 16 screen (393×852 pt). Viewed fit-to-width, so
+// 1 CSS px here ≈ 1 pt on screen; body text is 18pt (iOS default is 17pt).
+const PHONE_W = 393;
+const PHONE_H = 852;
+const PHONE_M = { top: 34, bottom: 40, side: 20 };
+
+type Geometry = { pageW: number; pageH: number; k: number };
+
+function geometry(layout: BookLayout): Geometry {
+  if (layout === "phone") {
+    return { pageW: PHONE_W - PHONE_M.side * 2, pageH: PHONE_H - PHONE_M.top - PHONE_M.bottom, k: 18 / 11.5 };
+  }
+  return { pageW: Math.round(CONTENT_W * MM), pageH: Math.round(CONTENT_H * MM), k: 1 };
+}
+
+// Font sizes / spacing are written for the print layout and scaled by k
+let K = 1;
+let PAGE_H_PX = 0;
+const px = (n: number) => `${+(n * K).toFixed(2)}px`;
 
 type Block = { el: HTMLElement; keepWithNext?: boolean; noteHeader?: boolean; splittable?: boolean };
 
@@ -27,7 +48,7 @@ function textOf(html: string) {
 function para(text: string, extra = ""): HTMLElement {
   const p = document.createElement("p");
   p.textContent = text;
-  p.style.cssText = `margin:0 0 6px;white-space:pre-wrap;${extra}`;
+  p.style.cssText = `margin:0 0 ${px(6)};white-space:pre-wrap;${extra}`;
   return p;
 }
 
@@ -35,11 +56,11 @@ function buildBlocks(notes: BookNote[], symbol: string, name: string): Block[] {
   const blocks: Block[] = [];
 
   const cover = document.createElement("div");
-  cover.style.cssText = "padding-bottom:14px;margin-bottom:18px;border-bottom:1.5px solid #111;";
+  cover.style.cssText = `padding-bottom:${px(14)};margin-bottom:${px(18)};border-bottom:1.5px solid #111;`;
   cover.innerHTML = `
-    <div style="font-size:9px;color:#9ca3af;letter-spacing:2px;margin-bottom:6px;">价值投资笔记</div>
-    <div style="font-size:22px;font-weight:800;line-height:1.25;color:#111;"></div>
-    <div style="font-size:9px;color:#9ca3af;margin-top:8px;">导出日期：${new Date().toLocaleDateString("zh-CN")} · 共 ${notes.length} 篇</div>`;
+    <div style="font-size:${px(9)};color:#9ca3af;letter-spacing:2px;margin-bottom:${px(6)};">价值投资笔记</div>
+    <div style="font-size:${px(22)};font-weight:800;line-height:1.25;color:#111;"></div>
+    <div style="font-size:${px(9)};color:#9ca3af;margin-top:${px(8)};">导出日期：${new Date().toLocaleDateString("zh-CN")} · 共 ${notes.length} 篇</div>`;
   (cover.children[1] as HTMLElement).textContent = name || symbol;
   blocks.push({ el: cover });
 
@@ -52,14 +73,14 @@ function buildBlocks(notes: BookNote[], symbol: string, name: string): Block[] {
       .replace(/\n?-{3,}\n(附言[（(][^）)]*[）)])\n?/g, "<p>---</p><p>$1</p>");
 
     const header = document.createElement("div");
-    header.style.cssText = "margin-bottom:6px;";
+    header.style.cssText = `margin-bottom:${px(6)};`;
     const meta = document.createElement("div");
-    meta.style.cssText = "font-size:9px;color:#9ca3af;font-family:monospace;margin-bottom:2px;";
+    meta.style.cssText = `font-size:${px(9)};color:#9ca3af;font-family:monospace;margin-bottom:${px(2)};`;
     meta.textContent = `${note.starred ? "★ " : ""}${note.date}`;
     header.appendChild(meta);
     if (title) {
       const t = document.createElement("div");
-      t.style.cssText = "font-size:14px;font-weight:700;color:#111;line-height:1.45;";
+      t.style.cssText = `font-size:${px(14)};font-weight:700;color:#111;line-height:1.45;`;
       t.textContent = title;
       header.appendChild(t);
     }
@@ -79,7 +100,7 @@ function buildBlocks(notes: BookNote[], symbol: string, name: string): Block[] {
       if (/^-{3,}$/.test(txt) && /^附言[（(]/.test(nextTxt)) {
         inPs = true;
         const sep = document.createElement("div");
-        sep.style.cssText = `margin:12px 0 4px;padding-top:8px;border-top:1px dashed #fcd34d;font-size:9px;font-weight:600;color:#d97706;`;
+        sep.style.cssText = `margin:${px(12)} 0 ${px(4)};padding-top:${px(8)};border-top:1px dashed #fcd34d;font-size:${px(9)};font-weight:600;color:#d97706;`;
         const m = nextTxt.match(/^附言[（(]\s*(.+?)\s*[）)]\s*([\s\S]*)$/);
         sep.textContent = `附言  ${m?.[1] ?? ""}`;
         blocks.push({ el: sep, keepWithNext: true });
@@ -95,17 +116,17 @@ function buildBlocks(notes: BookNote[], symbol: string, name: string): Block[] {
         el = para(txt);
       } else {
         el = (n as HTMLElement).cloneNode(true) as HTMLElement;
-        if (el.tagName === "P") el.style.margin = "0 0 6px";
-        if (/^H[1-6]$/.test(el.tagName)) el.style.cssText += "font-size:13px;font-weight:700;margin:8px 0 4px;";
-        if (el.tagName === "UL" || el.tagName === "OL") el.style.cssText += "margin:0 0 6px;padding-left:18px;";
+        if (el.tagName === "P") el.style.margin = `0 0 ${px(6)}`;
+        if (/^H[1-6]$/.test(el.tagName)) el.style.cssText += `font-size:${px(13)};font-weight:700;margin:${px(8)} 0 ${px(4)};`;
+        if (el.tagName === "UL" || el.tagName === "OL") el.style.cssText += `margin:0 0 ${px(6)};padding-left:${px(18)};`;
         el.querySelectorAll("img").forEach(img => {
           img.style.maxWidth = "100%";
-          img.style.maxHeight = `${PAGE_H_PX - 40}px`;
+          img.style.maxHeight = `${PAGE_H_PX - 40 * K}px`;
           img.crossOrigin = "anonymous";
         });
         if (el.tagName === "IMG") {
           el.style.maxWidth = "100%";
-          el.style.maxHeight = `${PAGE_H_PX - 40}px`;
+          el.style.maxHeight = `${PAGE_H_PX - 40 * K}px`;
           el.style.display = "block";
         }
       }
@@ -145,11 +166,11 @@ function trySplit(b: Block, page: HTMLElement): [Block, Block] | null {
   return [{ el: head }, { el: make(text.slice(cut).trimStart()), splittable: true }];
 }
 
-function paginate(blocks: Block[], host: HTMLElement): HTMLElement[] {
+function paginate(blocks: Block[], host: HTMLElement, pageW: number): HTMLElement[] {
   const pages: HTMLElement[] = [];
   const newPage = () => {
     const d = document.createElement("div");
-    d.style.cssText = `width:${PAGE_W_PX}px;height:${PAGE_H_PX}px;overflow:hidden;background:#fff;font-family:${FONT};color:#1f2937;font-size:11.5px;line-height:1.75;box-sizing:border-box;`;
+    d.style.cssText = `width:${pageW}px;height:${PAGE_H_PX}px;overflow:hidden;background:#fff;font-family:${FONT};color:#1f2937;font-size:${px(11.5)};line-height:${K > 1 ? 1.8 : 1.75};box-sizing:border-box;`;
     host.appendChild(d);
     pages.push(d);
     return d;
@@ -159,7 +180,7 @@ function paginate(blocks: Block[], host: HTMLElement): HTMLElement[] {
   while (queue.length) {
     const b = queue.shift()!;
     const isTop = page.childElementCount === 0;
-    if (b.noteHeader) b.el.style.marginTop = isTop ? "0" : "20px";
+    if (b.noteHeader) b.el.style.marginTop = isTop ? "0" : px(20);
     page.appendChild(b.el);
     let fits = page.scrollHeight <= PAGE_H_PX;
 
@@ -192,7 +213,7 @@ function paginate(blocks: Block[], host: HTMLElement): HTMLElement[] {
   return pages;
 }
 
-export async function exportBookPdf(symbol: string, name: string) {
+export async function exportBookPdf(symbol: string, name: string, layout: BookLayout = "print") {
   const res = await fetch(`/api/notes?symbol=${encodeURIComponent(symbol)}`);
   const notes: BookNote[] = await res.json();
   if (!Array.isArray(notes) || !notes.length) { alert("没有笔记可导出"); return; }
@@ -200,17 +221,36 @@ export async function exportBookPdf(symbol: string, name: string) {
   // A book reads oldest → newest
   const sorted = [...notes].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
 
+  const g = geometry(layout);
+  K = g.k;
+  PAGE_H_PX = g.pageH;
+
   const host = document.createElement("div");
   host.style.cssText = "position:fixed;left:-20000px;top:0;";
   document.body.appendChild(host);
 
   try {
     await document.fonts?.ready;
-    const pages = paginate(buildBlocks(sorted, symbol, name), host);
+    const pages = paginate(buildBlocks(sorted, symbol, name), host, g.pageW);
 
     const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
-    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
+    if (layout === "phone") {
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: [PHONE_W, PHONE_H] });
+      for (let i = 0; i < pages.length; i++) {
+        if (i > 0) pdf.addPage([PHONE_W, PHONE_H], "portrait");
+        // 3× matches the iPhone's retina screen so text stays sharp
+        const canvas = await html2canvas(pages[i], { scale: 3, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+        pdf.addImage(canvas.toDataURL("image/jpeg", 0.85), "JPEG", PHONE_M.side, PHONE_M.top, g.pageW, g.pageH);
+        pdf.setFontSize(9);
+        pdf.setTextColor(170);
+        pdf.text(`${i + 1} / ${pages.length}`, PHONE_W / 2, PHONE_H - 16, { align: "center" });
+      }
+      pdf.save(`${name || symbol}-手机版.pdf`);
+      return;
+    }
+
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     for (let i = 0; i < pages.length; i++) {
       const side = i % 2;
       if (i > 0 && side === 0) pdf.addPage();
@@ -221,7 +261,6 @@ export async function exportBookPdf(symbol: string, name: string) {
       pdf.setTextColor(160);
       pdf.text(String(i + 1), side === 0 ? x : x + CONTENT_W, SHEET_H - 11, { align: side === 0 ? "left" : "right" });
     }
-
     pdf.save(`${name || symbol}-书本版.pdf`);
   } finally {
     document.body.removeChild(host);
