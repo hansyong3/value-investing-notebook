@@ -218,8 +218,7 @@ export async function exportBookPdf(symbol: string, name: string, layout: BookLa
   const notes: BookNote[] = await res.json();
   if (!Array.isArray(notes) || !notes.length) { alert("没有笔记可导出"); return; }
 
-  // A book reads oldest → newest
-  const sorted = [...notes].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  const sorted = [...notes].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 
   const g = geometry(layout);
   K = g.k;
