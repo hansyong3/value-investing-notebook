@@ -22,7 +22,7 @@ type Props = {
   onNotesSaved: () => void;
   // Update the page's notes in place instead of re-downloading the whole notebook
   onNotesPatched: (update: (notes: Note[]) => Note[]) => void;
-  onExportPdf: (layout?: "print" | "phone") => Promise<void>;
+  onExportPdf: (layout?: "print" | "phone" | "boox") => Promise<void>;
   notebooks?: Notebook[];
   centered?: boolean;
   bars?: Bar[];
@@ -533,6 +533,7 @@ export default function NotePanel({ symbol, notes, activeDate, onNotesSaved, onN
                   {([
                     { layout: "print", label: "打印版", hint: "A4 横向，左右两页，适合打印" },
                     { layout: "phone", label: "手机版", hint: "iPhone 屏幕大小，单栏大字" },
+                    { layout: "boox", label: "BOOX 7 寸版", hint: "电子墨水屏 3:4，单栏，纯黑字" },
                   ] as const).map(o => (
                     <button key={o.layout}
                       onClick={async () => {

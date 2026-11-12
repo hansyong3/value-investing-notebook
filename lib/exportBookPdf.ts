@@ -1,6 +1,6 @@
 type BookNote = { id: number; date: string; content: string; starred: boolean };
 
-export type BookLayout = "print" | "phone";
+export type BookLayout = "print" | "phone" | "boox";
 
 const MM = 96 / 25.4;
 const FONT = "'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif";
@@ -23,17 +23,33 @@ const PHONE_W = 393;
 const PHONE_H = 852;
 const PHONE_M = { top: 34, bottom: 40, side: 20 };
 
+// boox: BOOX 7" e-reader (1264×1680 px at 300 ppi, 3:4) = 303×403 pt physical.
+// Shown at actual size, so body text is 12.5pt — a comfortable e-reader size.
+const BOOX_W = 303;
+const BOOX_H = 403;
+const BOOX_M = { top: 22, bottom: 28, side: 18 };
+
+// Single-column screen layouts (page size in pt; 1 CSS px is drawn as 1 pt)
+const SCREENS = {
+  phone: { w: PHONE_W, h: PHONE_H, m: PHONE_M, scale: 3, quality: 0.85, fontSize: 9, footer: 16, file: "手机版" },
+  boox: { w: BOOX_W, h: BOOX_H, m: BOOX_M, scale: 300 / 72, quality: 0.8, fontSize: 7, footer: 11, file: "BOOX版" },
+} as const;
+
 type Geometry = { pageW: number; pageH: number; k: number };
 
 function geometry(layout: BookLayout): Geometry {
   if (layout === "phone") {
     return { pageW: PHONE_W - PHONE_M.side * 2, pageH: PHONE_H - PHONE_M.top - PHONE_M.bottom, k: 18 / 11.5 };
   }
+  if (layout === "boox") {
+    return { pageW: BOOX_W - BOOX_M.side * 2, pageH: BOOX_H - BOOX_M.top - BOOX_M.bottom, k: 12.5 / 11.5 };
+  }
   return { pageW: Math.round(CONTENT_W * MM), pageH: Math.round(CONTENT_H * MM), k: 1 };
 }
 
 // Font sizes / spacing are written for the print layout and scaled by k
 let K = 1;
+let INK = "#1f2937"; // pure black on e-ink for contrast
 let PAGE_H_PX = 0;
 const px = (n: number) => `${+(n * K).toFixed(2)}px`;
 
@@ -170,7 +186,7 @@ function paginate(blocks: Block[], host: HTMLElement, pageW: number): HTMLElemen
   const pages: HTMLElement[] = [];
   const newPage = () => {
     const d = document.createElement("div");
-    d.style.cssText = `width:${pageW}px;height:${PAGE_H_PX}px;overflow:hidden;background:#fff;font-family:${FONT};color:#1f2937;font-size:${px(11.5)};line-height:${K > 1 ? 1.8 : 1.75};box-sizing:border-box;`;
+    d.style.cssText = `width:${pageW}px;height:${PAGE_H_PX}px;overflow:hidden;background:#fff;font-family:${FONT};color:${INK};font-size:${px(11.5)};line-height:${K > 1 ? 1.8 : 1.75};box-sizing:border-box;`;
     host.appendChild(d);
     pages.push(d);
     return d;
@@ -222,6 +238,7 @@ export async function exportBookPdf(symbol: string, name: string, layout: BookLa
 
   const g = geometry(layout);
   K = g.k;
+  INK = layout === "boox" ? "#000" : "#1f2937";
   PAGE_H_PX = g.pageH;
 
   const host = document.createElement("div");
@@ -234,18 +251,19 @@ export async function exportBookPdf(symbol: string, name: string, layout: BookLa
 
     const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
 
-    if (layout === "phone") {
-      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: [PHONE_W, PHONE_H] });
+    if (layout !== "print") {
+      const sc = SCREENS[layout];
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: [sc.w, sc.h] });
       for (let i = 0; i < pages.length; i++) {
-        if (i > 0) pdf.addPage([PHONE_W, PHONE_H], "portrait");
-        // 3× matches the iPhone's retina screen so text stays sharp
-        const canvas = await html2canvas(pages[i], { scale: 3, useCORS: true, logging: false, backgroundColor: "#ffffff" });
-        pdf.addImage(canvas.toDataURL("image/jpeg", 0.85), "JPEG", PHONE_M.side, PHONE_M.top, g.pageW, g.pageH);
-        pdf.setFontSize(9);
-        pdf.setTextColor(170);
-        pdf.text(`${i + 1} / ${pages.length}`, PHONE_W / 2, PHONE_H - 16, { align: "center" });
+        if (i > 0) pdf.addPage([sc.w, sc.h], "portrait");
+        // Render at the device's pixel density so text stays sharp
+        const canvas = await html2canvas(pages[i], { scale: sc.scale, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+        pdf.addImage(canvas.toDataURL("image/jpeg", sc.quality), "JPEG", sc.m.side, sc.m.top, g.pageW, g.pageH);
+        pdf.setFontSize(sc.fontSize);
+        pdf.setTextColor(150);
+        pdf.text(`${i + 1} / ${pages.length}`, sc.w / 2, sc.h - sc.footer, { align: "center" });
       }
-      pdf.save(`${name || symbol}-手机版.pdf`);
+      pdf.save(`${name || symbol}-${sc.file}.pdf`);
       return;
     }
 
