@@ -49,6 +49,17 @@ export async function GET(req: Request) {
       const timestamps: number[] = result.timestamp;
       const quote = result.indicators.quote[0];
 
+      // Yahoo often leaves today's bar with close = null (mostly US stocks) while
+      // meta.regularMarketPrice is current; fill it so the latest price isn't yesterday's.
+      const last = timestamps.length - 1;
+      const live = result.meta?.regularMarketPrice;
+      if (last >= 0 && quote.close[last] == null && typeof live === "number") {
+        quote.close[last] = live;
+        quote.open[last] ??= live;
+        quote.high[last] ??= result.meta?.regularMarketDayHigh ?? live;
+        quote.low[last] ??= result.meta?.regularMarketDayLow ?? live;
+      }
+
       const bars = timestamps
         .map((ts: number, i: number) => ({
           time: new Date(ts * 1000).toISOString().split("T")[0],
