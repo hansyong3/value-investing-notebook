@@ -36,14 +36,13 @@ function PriceLevelInput({ label, value, onSave, suffix, width = "w-20" }: { lab
   const [draft, setDraft] = useState(value != null ? String(Number(value)) : "");
   useEffect(() => { setDraft(value != null ? String(Number(value)) : ""); }, [value]);
   return (
-    <label className="flex items-center gap-1 text-xs text-gray-400">
+    <label className="flex items-center gap-0.5 text-xs text-gray-400">
       {label}
       <input
-        type="number" step="any" min="0" value={draft} placeholder="—"
-        onChange={e => setDraft(e.target.value)}
+        type="number" step="any" min="0" value={draft} placeholder="—"        onChange={e => setDraft(e.target.value)}
         onBlur={() => { if (draft !== (value != null ? String(Number(value)) : "")) onSave(draft); }}
         onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        className={`${width} border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:border-blue-400`}
+        className={`${width} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none border border-gray-200 rounded px-1 py-0.5 text-xs text-gray-700 focus:outline-none focus:border-blue-400`}
       />
       {suffix}
     </label>
@@ -580,8 +579,8 @@ export default function StockPage() {
                 const zone = priceZone(cur, latestPrice ?? undefined);
                 return (
                   <div className="flex items-center gap-2 ml-3 pl-3 border-l border-gray-200 flex-shrink-0">
-                    <PriceLevelInput label="内在价值" value={cur.fairPrice} onSave={v => savePriceLevel(cur.id, "fairPrice", v)} />
-                    <PriceLevelInput label="安全边际" suffix="%" width="w-14" value={cur.marginOfSafety} onSave={v => savePriceLevel(cur.id, "marginOfSafety", v)} />
+                    <PriceLevelInput label="内在价值" width="w-14" value={cur.fairPrice} onSave={v => savePriceLevel(cur.id, "fairPrice", v)} />
+                    <PriceLevelInput label="安全边际" suffix="%" width="w-9" value={cur.marginOfSafety} onSave={v => savePriceLevel(cur.id, "marginOfSafety", v)} />
                     <span className="text-xs text-gray-400" title="内在价值 × (1 − 安全边际)">
                       → 买入价 <strong className="text-gray-700">{cur.buyPrice != null ? fmtPrice(Number(cur.buyPrice)) : "—"}</strong>
                     </span>
