@@ -83,21 +83,19 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
       totalShares -= s;
     }
   }
-  const avgCost = totalShares > 0 ? totalCost / totalShares : 0;
-  // 摊薄成本: net cash put in (buys − sale proceeds) spread over the shares still held
-  const dilutedCost = totalShares > 0 ? (totalBuyCost - totalProceeds) / totalShares : 0;
+  // 持仓平均成本 counts sales too: (buys − sale proceeds) ÷ shares still held,
+  // so gains/losses from sales are absorbed into the cost of the remaining shares.
+  const avgCost = totalShares > 0 ? (totalBuyCost - totalProceeds) / totalShares : 0;
   const hasHistory = holdings.length > 0;
   const isExited = hasHistory && totalShares <= 0;
 
   // Unrealized P&L (still holding)
   const unrealizedPnl = currentPrice != null && totalShares > 0 ? (currentPrice - avgCost) * totalShares : null;
-  const unrealizedRate = currentPrice != null && avgCost > 0 && totalShares > 0 ? (currentPrice - avgCost) / avgCost * 100 : null;
 
-  // For display: total P&L = realized (from sales) + unrealized (shares still held)
-  const pnl = isExited ? realizedPnl : unrealizedPnl == null ? null : realizedPnl + unrealizedPnl;
+  // With sales folded into avgCost, (price − avgCost) × shares is already the total P&L
+  const pnl = isExited ? realizedPnl : unrealizedPnl;
   const pnlRate = pnl != null && totalBuyCost > 0 ? pnl / totalBuyCost * 100 : null;
   const pnlLabel = isExited ? "已实现盈亏" : "总盈亏";
-  const showSplit = !isExited && unrealizedPnl != null && Math.abs(realizedPnl) >= 0.5;
   const fmtPnl = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(0)}`;
 
   async function handleAdd(e: React.FormEvent) {
@@ -147,10 +145,7 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
               {!isExited && (
                 <>
                   <span className="text-sm text-gray-500">持仓 <span className="font-mono font-semibold text-gray-800">{totalShares.toLocaleString()}</span> 股</span>
-                  <span className="text-sm text-gray-500" title="加权平均：卖出不改变剩余股份的成本">持仓平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
-                  {totalProceeds > 0 && (
-                    <span className="text-sm text-gray-500" title="（买入总额 − 卖出所得）÷ 现持股数，已把卖出的盈亏摊进来">摊薄成本 <span className="font-mono font-semibold text-gray-800">{dilutedCost.toFixed(3)}</span></span>
-                  )}
+                  <span className="text-sm text-gray-500" title="（买入总额 − 卖出所得）÷ 现持股数，卖出的盈亏已计入">持仓平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
                   {currentPrice != null && (
                     <>
                       <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
@@ -170,12 +165,7 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
                   )}
                 </span>
               )}
-              {showSplit && (
-                <span className="text-xs text-gray-400">
-                  已实现 <span className={`font-mono ${realizedPnl >= 0 ? "text-green-600" : "text-red-500"}`}>{fmtPnl(realizedPnl)}</span>
-                  {" · "}未实现 <span className={`font-mono ${unrealizedPnl! >= 0 ? "text-green-600" : "text-red-500"}`}>{fmtPnl(unrealizedPnl!)}</span>
-                </span>
-              )}
+
             </>
           )}
         </div>
