@@ -12,9 +12,9 @@ const StockChart = dynamic(() => import("@/components/StockChart"), { ssr: false
 
 type Bar = { time: string; open: number; high: number; low: number; close: number };
 type Note = { id: number; date: string; content: string; starred: boolean; images: { id: number; url: string }[] };
-type Stock = { id: number; symbol: string; name: string; notebook: boolean; holding: boolean; fairPrice: string | null; buyPrice: string | null };
+type Stock = { id: number; symbol: string; name: string; notebook: boolean; holding: boolean; fairPrice: string | null; buyPrice: string | null; marginOfSafety: string | null };
 
-// "buy" = at/below 买入价, "fair" = at/below 合理价 but above 买入价
+// "buy" = at/below 买入价, "fair" = at/below 内在价值 (fairPrice) but above 买入价
 function priceZone(s: Stock | undefined, price: number | undefined): "buy" | "fair" | null {
   if (!s || price == null) return null;
   const buy = s.buyPrice != null ? Number(s.buyPrice) : null;
@@ -32,7 +32,7 @@ function fmtPrice(n: number) {
   return n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 2 : 3 });
 }
 
-function PriceLevelInput({ label, value, onSave }: { label: string; value: string | null; onSave: (v: string) => void }) {
+function PriceLevelInput({ label, value, onSave, suffix, width = "w-20" }: { label: string; value: string | null; onSave: (v: string) => void; suffix?: string; width?: string }) {
   const [draft, setDraft] = useState(value != null ? String(Number(value)) : "");
   useEffect(() => { setDraft(value != null ? String(Number(value)) : ""); }, [value]);
   return (
@@ -43,8 +43,9 @@ function PriceLevelInput({ label, value, onSave }: { label: string; value: strin
         onChange={e => setDraft(e.target.value)}
         onBlur={() => { if (draft !== (value != null ? String(Number(value)) : "")) onSave(draft); }}
         onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        className="w-20 border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:border-blue-400"
+        className={`${width} border border-gray-200 rounded px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:border-blue-400`}
       />
+      {suffix}
     </label>
   );
 }
@@ -242,7 +243,7 @@ export default function StockPage() {
     return () => { cancelled = true; window.clearInterval(t); document.removeEventListener("visibilitychange", load); };
   }, [watchedSymbols]);
 
-  async function savePriceLevel(id: number, field: "fairPrice" | "buyPrice", raw: string) {
+  async function savePriceLevel(id: number, field: "fairPrice" | "marginOfSafety", raw: string) {
     const value = raw.trim() === "" ? null : raw.trim();
     const res = await fetch("/api/stocks", {
       method: "PATCH",
@@ -405,7 +406,7 @@ export default function StockPage() {
                           if (!zone) return null;
                           const tip = zone === "buy"
                             ? `现价 ${fmtPrice(price!)} ≤ 买入价 ${fmtPrice(Number(stock.buyPrice))}`
-                            : `现价 ${fmtPrice(price!)} ≤ 合理价 ${fmtPrice(Number(stock.fairPrice))}`;
+                            : `现价 ${fmtPrice(price!)} ≤ 内在价值 ${fmtPrice(Number(stock.fairPrice))}`;
                           return (
                             <span title={tip} className="relative flex h-2.5 w-2.5 flex-shrink-0">
                               {zone === "buy" && <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />}
@@ -579,11 +580,14 @@ export default function StockPage() {
                 const zone = priceZone(cur, latestPrice ?? undefined);
                 return (
                   <div className="flex items-center gap-2 ml-3 pl-3 border-l border-gray-200 flex-shrink-0">
-                    <PriceLevelInput label="合理价" value={cur.fairPrice} onSave={v => savePriceLevel(cur.id, "fairPrice", v)} />
-                    <PriceLevelInput label="买入价" value={cur.buyPrice} onSave={v => savePriceLevel(cur.id, "buyPrice", v)} />
+                    <PriceLevelInput label="内在价值" value={cur.fairPrice} onSave={v => savePriceLevel(cur.id, "fairPrice", v)} />
+                    <PriceLevelInput label="安全边际" suffix="%" width="w-14" value={cur.marginOfSafety} onSave={v => savePriceLevel(cur.id, "marginOfSafety", v)} />
+                    <span className="text-xs text-gray-400" title="内在价值 × (1 − 安全边际)">
+                      → 买入价 <strong className="text-gray-700">{cur.buyPrice != null ? fmtPrice(Number(cur.buyPrice)) : "—"}</strong>
+                    </span>
                     {zone && (
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${zone === "buy" ? "bg-red-500 text-white" : "bg-red-50 text-red-600 border border-red-200"}`}>
-                        {zone === "buy" ? "已到买入价" : "进入合理区"}
+                        {zone === "buy" ? "已到买入价" : "低于内在价值"}
                       </span>
                     )}
                   </div>

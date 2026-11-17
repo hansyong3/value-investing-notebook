@@ -9,6 +9,8 @@ export const stocks = pgTable("stocks", {
   holding: boolean("holding").default(false).notNull(),
   fairPrice: numeric("fair_price", { precision: 15, scale: 4 }),
   buyPrice: numeric("buy_price", { precision: 15, scale: 4 }),
+  // 安全边际 in percent; when set together with fairPrice (内在价值), buyPrice = fairPrice × (1 − margin/100)
+  marginOfSafety: numeric("margin_of_safety", { precision: 6, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

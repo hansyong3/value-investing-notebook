@@ -22,16 +22,33 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const body = await req.json();
-  // Rename, toggle notebook, or set price levels: { id, name?, notebook?, fairPrice?, buyPrice? }
-  if (body.id && ["name", "notebook", "fairPrice", "buyPrice"].some(k => body[k] !== undefined)) {
+  // Rename, toggle notebook, or set price levels: { id, name?, notebook?, fairPrice?, marginOfSafety? }
+  // fairPrice = 内在价值; buyPrice is derived: 内在价值 × (1 − 安全边际%)
+  if (body.id && ["name", "notebook", "fairPrice", "marginOfSafety"].some(k => body[k] !== undefined)) {
     const updates: Record<string, unknown> = {};
     if (body.name !== undefined) updates.name = body.name;
     if (body.notebook !== undefined) updates.notebook = body.notebook;
-    for (const k of ["fairPrice", "buyPrice"] as const) {
-      if (body[k] === undefined) continue;
-      const n = body[k] === null || body[k] === "" ? null : Number(body[k]);
-      if (n !== null && !(n > 0)) return NextResponse.json({ error: `${k} must be a positive number` }, { status: 400 });
-      updates[k] = n === null ? null : String(n);
+    const parse = (v: unknown) => (v === null || v === "" ? null : Number(v));
+    if (body.fairPrice !== undefined) {
+      const n = parse(body.fairPrice);
+      if (n !== null && !(n > 0)) return NextResponse.json({ error: "内在价值须为正数" }, { status: 400 });
+      updates.fairPrice = n === null ? null : String(n);
+    }
+    if (body.marginOfSafety !== undefined) {
+      const n = parse(body.marginOfSafety);
+      if (n !== null && !(n >= 0 && n < 100)) return NextResponse.json({ error: "安全边际须在 0–99.99% 之间" }, { status: 400 });
+      updates.marginOfSafety = n === null ? null : String(n);
+    }
+    if (body.fairPrice !== undefined || body.marginOfSafety !== undefined) {
+      const [cur] = await db.select().from(stocks).where(eq(stocks.id, body.id));
+      if (!cur) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      const fair = "fairPrice" in updates ? (updates.fairPrice as string | null) : cur.fairPrice;
+      const margin = "marginOfSafety" in updates ? (updates.marginOfSafety as string | null) : cur.marginOfSafety;
+      if (fair != null && margin != null) {
+        updates.buyPrice = (Number(fair) * (1 - Number(margin) / 100)).toFixed(4);
+      } else if (body.fairPrice !== undefined && fair == null) {
+        updates.buyPrice = null; // 内在价值 cleared → no buy price
+      }
     }
     const [stock] = await db.update(stocks).set(updates).where(eq(stocks.id, body.id)).returning();
     return NextResponse.json(stock);
