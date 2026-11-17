@@ -65,8 +65,8 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
   const [editForm, setEditForm] = useState<EditForm>(EMPTY);
   const [editSaving, setEditSaving] = useState(false);
 
-  // Summary: FIFO average cost + realized/unrealized P&L
-  let totalShares = 0, totalCost = 0, totalBuyCost = 0, realizedPnl = 0;
+  // Summary: weighted-average cost + realized/unrealized P&L
+  let totalShares = 0, totalCost = 0, totalBuyCost = 0, totalProceeds = 0, realizedPnl = 0;
   for (const h of [...holdings].sort((a, b) => a.date.localeCompare(b.date))) {
     const s = parseFloat(h.shares), p = parseFloat(h.price), f = parseFloat(h.fee || "0");
     if (h.type === "buy") {
@@ -76,6 +76,7 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
     } else {
       const avgPerShare = totalShares > 0 ? totalCost / totalShares : p;
       const proceeds = s * p - f;
+      totalProceeds += proceeds;
       const cost = s * avgPerShare;
       realizedPnl += proceeds - cost;
       totalCost -= cost;
@@ -83,6 +84,8 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
     }
   }
   const avgCost = totalShares > 0 ? totalCost / totalShares : 0;
+  // 摊薄成本: net cash put in (buys − sale proceeds) spread over the shares still held
+  const dilutedCost = totalShares > 0 ? (totalBuyCost - totalProceeds) / totalShares : 0;
   const hasHistory = holdings.length > 0;
   const isExited = hasHistory && totalShares <= 0;
 
@@ -90,12 +93,12 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
   const unrealizedPnl = currentPrice != null && totalShares > 0 ? (currentPrice - avgCost) * totalShares : null;
   const unrealizedRate = currentPrice != null && avgCost > 0 && totalShares > 0 ? (currentPrice - avgCost) / avgCost * 100 : null;
 
-  // For display
-  const pnl = isExited ? realizedPnl : unrealizedPnl;
-  const pnlRate = isExited
-    ? (totalBuyCost > 0 ? realizedPnl / totalBuyCost * 100 : null)
-    : unrealizedRate;
-  const pnlLabel = isExited ? "已实现盈亏" : "盈亏";
+  // For display: total P&L = realized (from sales) + unrealized (shares still held)
+  const pnl = isExited ? realizedPnl : unrealizedPnl == null ? null : realizedPnl + unrealizedPnl;
+  const pnlRate = pnl != null && totalBuyCost > 0 ? pnl / totalBuyCost * 100 : null;
+  const pnlLabel = isExited ? "已实现盈亏" : "总盈亏";
+  const showSplit = !isExited && unrealizedPnl != null && Math.abs(realizedPnl) >= 0.5;
+  const fmtPnl = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(0)}`;
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -144,7 +147,10 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
               {!isExited && (
                 <>
                   <span className="text-sm text-gray-500">持仓 <span className="font-mono font-semibold text-gray-800">{totalShares.toLocaleString()}</span> 股</span>
-                  <span className="text-sm text-gray-500">持仓平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
+                  <span className="text-sm text-gray-500" title="加权平均：卖出不改变剩余股份的成本">持仓平均成本 <span className="font-mono font-semibold text-gray-800">{avgCost.toFixed(3)}</span></span>
+                  {totalProceeds > 0 && (
+                    <span className="text-sm text-gray-500" title="（买入总额 − 卖出所得）÷ 现持股数，已把卖出的盈亏摊进来">摊薄成本 <span className="font-mono font-semibold text-gray-800">{dilutedCost.toFixed(3)}</span></span>
+                  )}
                   {currentPrice != null && (
                     <>
                       <span className="text-sm text-gray-400">当前价 <span className="font-mono font-medium text-gray-600">{currentPrice.toFixed(3)}</span></span>
@@ -158,10 +164,16 @@ export default function HoldingsPanel({ symbol, holdings, onSaved, currentPrice 
               )}
               {pnl != null && (
                 <span className={`text-base font-bold ${pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {pnlLabel} <span className="font-mono">{pnl >= 0 ? "+" : ""}{pnl.toFixed(0)}</span>
+                  {pnlLabel} <span className="font-mono">{fmtPnl(pnl)}</span>
                   {pnlRate != null && (
                     <span className="ml-1 text-sm">({pnlRate >= 0 ? "+" : ""}{pnlRate.toFixed(2)}%)</span>
                   )}
+                </span>
+              )}
+              {showSplit && (
+                <span className="text-xs text-gray-400">
+                  已实现 <span className={`font-mono ${realizedPnl >= 0 ? "text-green-600" : "text-red-500"}`}>{fmtPnl(realizedPnl)}</span>
+                  {" · "}未实现 <span className={`font-mono ${unrealizedPnl! >= 0 ? "text-green-600" : "text-red-500"}`}>{fmtPnl(unrealizedPnl!)}</span>
                 </span>
               )}
             </>
