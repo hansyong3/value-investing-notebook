@@ -34,41 +34,88 @@ function parseNote(note: Note) {
 
 // Rotation state lives in localStorage so it survives reloads and stock
 // switches: every note is shown once (random order) before any repeats.
+// Notes written since the popup last looked ("known" set) jump the queue,
+// newest first, so a fresh entry shows up at the next turn instead of
+// waiting for its random slot in a 100+ note round.
 const SEEN_KEY = "diary-review-seen";
+const KNOWN_KEY = "diary-review-known";
+const FIRST_RUN_NEW_DAYS = 14;
 
-function readSeen(): number[] {
+function readIds(key: string): number[] | null {
   try {
-    const v = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "[]");
+    const raw = localStorage.getItem(key);
+    if (raw == null) return null;
+    const v = JSON.parse(raw);
     return Array.isArray(v) ? v.filter(Number.isInteger) : [];
-  } catch { return []; }
+  } catch { return null; }
+}
+function writeIds(key: string, ids: number[]) {
+  try { localStorage.setItem(key, JSON.stringify(ids)); } catch { /* private mode */ }
 }
 
-function pickNext(pool: Note[], lastId?: number): { note: Note; seen: number; total: number } | null {
+function hasText(n: Note) {
+  const { title, body } = parseNote(n);
+  return !!(title || body);
+}
+
+type Pick = { note: Note; seen: number; total: number; isNew: boolean };
+
+function pickNext(all: Note[], lastId?: number): Pick | null {
+  // a just-created, still-empty note waits until it has text
+  const pool = all.filter(hasText);
   if (!pool.length) return null;
   const ids = new Set(pool.map(n => n.id));
-  let seen = readSeen().filter(id => ids.has(id));
-  let unseen = pool.filter(n => !seen.includes(n.id));
-  if (!unseen.length) {
-    seen = [];
-    // new round: avoid showing the same note twice in a row
-    unseen = pool.length > 1 ? pool.filter(n => n.id !== lastId) : pool;
+
+  let known = readIds(KNOWN_KEY);
+  if (known == null) {
+    // first run of this logic: entries from the last two weeks count as new
+    const cutoff = new Date(Date.now() - FIRST_RUN_NEW_DAYS * 864e5).toISOString().slice(0, 10);
+    known = pool.filter(n => n.date < cutoff).map(n => n.id);
   }
-  const note = unseen[Math.floor(Math.random() * unseen.length)];
+  const knownSet = new Set(known);
+
+  let seen = (readIds(SEEN_KEY) ?? []).filter(id => ids.has(id));
+  const fresh = pool
+    .filter(n => !knownSet.has(n.id) && !seen.includes(n.id))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+  let note: Note;
+  let isNew = false;
+  if (fresh.length) {
+    note = fresh[0];
+    isNew = true;
+  } else {
+    let unseen = pool.filter(n => !seen.includes(n.id));
+    if (!unseen.length) {
+      seen = [];
+      // new round: avoid showing the same note twice in a row
+      unseen = pool.length > 1 ? pool.filter(n => n.id !== lastId) : pool;
+    }
+    note = unseen[Math.floor(Math.random() * unseen.length)];
+  }
+
   seen.push(note.id);
-  try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch { /* private mode */ }
-  return { note, seen: seen.length, total: pool.length };
+  writeIds(SEEN_KEY, seen);
+  // everything currently in the pool except still-unshown new notes is now known
+  const pending = new Set(fresh.filter(n => n.id !== note.id).map(n => n.id));
+  writeIds(KNOWN_KEY, pool.filter(n => !pending.has(n.id)).map(n => n.id));
+  return { note, seen: seen.length, total: pool.length, isNew };
 }
 
-// Loaded once per page load; navigating between stocks reuses it.
-let diaryCache: Promise<Note[]> | null = null;
+// Shared across stock switches, but re-fetched (text only, small) when older
+// than 10 min so entries written while the tab stays open are picked up.
+const DIARY_TTL_MS = 10 * 60 * 1000;
+let diaryCache: { at: number; data: Promise<Note[]> } | null = null;
 function loadDiary(): Promise<Note[]> {
-  if (!diaryCache) {
-    diaryCache = fetch("/api/diary")
+  if (!diaryCache || Date.now() - diaryCache.at > DIARY_TTL_MS) {
+    const prev = diaryCache?.data;
+    const data: Promise<Note[]> = fetch("/api/diary", { cache: "no-store" })
       .then(r => r.json())
       .then(d => (Array.isArray(d?.notes) ? d.notes : []))
-      .catch(() => { diaryCache = null; return []; });
+      .catch(() => { diaryCache = null; return prev ?? []; });
+    diaryCache = { at: Date.now(), data };
   }
-  return diaryCache;
+  return diaryCache.data;
 }
 
 function localDate() {
@@ -77,49 +124,44 @@ function localDate() {
 }
 
 export default function DiaryCard() {
-  const [notes, setNotes] = useState<Note[]>([]);
   const [current, setCurrent] = useState<Note | null>(null);
   const [visible, setVisible] = useState(false);
   const [addingPostscript, setAddingPostscript] = useState(false);
   const [psText, setPsText] = useState("");
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState<{ seen: number; total: number } | null>(null);
+  const [isNew, setIsNew] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // The hourly timer is created once, so it reads the latest values through refs
-  const notesRef = useRef<Note[]>([]);
+  // The hourly timer is created once, so it reads the latest values through a ref
   const currentIdRef = useRef<number | undefined>(undefined);
   useEffect(() => {
-    notesRef.current = notes;
     currentIdRef.current = current?.id;
-  }, [notes, current]);
+  }, [current]);
   const psRef = useRef<HTMLTextAreaElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  function showNext(pool: Note[], lastId?: number) {
+  // Always picks from a fresh-enough list, so newly written entries are included
+  async function showNext(lastId?: number) {
+    const pool = await loadDiary();
     const r = pickNext(pool, lastId);
-    if (!r) return false;
+    if (!r) return;
     setCurrent(r.note);
     setProgress({ seen: r.seen, total: r.total });
+    setIsNew(r.isNew);
     setVisible(true);
     setAddingPostscript(false);
     setPsText("");
-    return true;
   }
 
   useEffect(() => {
-    async function loadAndShow() {
-      const data = await loadDiary();
-      if (!data.length) return;
-      setNotes(data);
-      showNext(data);
-    }
-
-    loadAndShow();
+    // deferred: also keeps React strict mode's double-mount from consuming two picks
+    const t = setTimeout(() => showNext(), 0);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
-      showNext(notesRef.current, currentIdRef.current);
+      showNext(currentIdRef.current);
     }, HOUR_MS);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -144,9 +186,8 @@ export default function DiaryCard() {
         const { psHtml } = await res.json();
         const newNote: Note = { ...current, content: current.content + psHtml };
         // keep the cached copy in sync so the postscript survives navigation
-        diaryCache = loadDiary().then(list => list.map(n => n.id === newNote.id ? newNote : n));
+        diaryCache = { at: Date.now(), data: loadDiary().then(list => list.map(n => n.id === newNote.id ? newNote : n)) };
         setCurrent(newNote);
-        setNotes(prev => prev.map(n => n.id === newNote.id ? newNote : n));
         setAddingPostscript(false);
         setPsText("");
         // scroll to show the postscript
@@ -181,6 +222,9 @@ export default function DiaryCard() {
           <span className="text-amber-400 text-sm">📖</span>
           <span className="text-xs font-semibold text-amber-700">投资日记回顾</span>
           <span className="text-xs text-amber-400">{current.date}</span>
+          {isNew && (
+            <span className="text-[10px] font-semibold text-white bg-amber-500 rounded px-1 leading-4" title="新写的日记，优先回顾">新</span>
+          )}
           {progress && (
             <span className="text-xs text-amber-300" title="本轮已回顾 / 日记总数；全部看完才开始新一轮">
               · {progress.seen}/{progress.total}
@@ -261,9 +305,7 @@ export default function DiaryCard() {
           {addingPostscript ? "收起" : "+ 写附言"}
         </button>
         <button
-          onClick={() => {
-            showNext(notes, current.id);
-          }}
+          onClick={() => { showNext(current.id); }}
           className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-full"
         >
           下一篇 →
